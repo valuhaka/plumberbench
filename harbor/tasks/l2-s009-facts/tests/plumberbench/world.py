@@ -109,6 +109,7 @@ class State:
     done: bool = False
     timed_out: bool = False
     diagnosis: list[str] | None = None
+    layout: dict[str, dict] = field(default_factory=dict)  # pipe layout under each sink (layout.py)
 
     def by_tag(self, tag: str) -> Comp | None:
         tag = str(tag).strip().upper()

@@ -6,9 +6,12 @@ instructions, pictures and text. The model gets the task instruction as the
 user message. Results land in runs/ with the server's log, a transcript, a
 replay page and a summary.
 
+The key comes from ANTHROPIC_API_KEY or OPENAI_API_KEY, or the variable named by --key-env.
+
     export ANTHROPIC_API_KEY=...
     python -m plumberbench.agent run --provider anthropic --model MODEL --levels 1 2 --seeds 0-1
-    python -m plumberbench.agent run --provider openai --model MODEL            # OPENAI_API_KEY
+    python -m plumberbench.agent run --provider openai --model MODEL
+    python -m plumberbench.agent run --provider openai --model MODEL --reasoning-effort none
     python -m plumberbench.agent run --provider openai --model MODEL \\
         --base-url https://generativelanguage.googleapis.com/v1beta/openai/ --key-env GEMINI_API_KEY
     python -m plumberbench.agent smoke --provider anthropic --model MODEL --repeat 3
@@ -20,6 +23,8 @@ Providers:
     openai     Any OpenAI-compatible Chat Completions endpoint (OpenAI, Gemini's
                compatible endpoint, OpenRouter, vLLM, ...). Tool results are text;
                their pictures follow in one user message, as OpenCode does.
+               --reasoning-effort sets `reasoning_effort`; OpenAI's newer models
+               allow function calling over Chat Completions only with `none`.
     scripted   No model: replays a list of tool calls (for tests and dry runs).
 
 `smoke` runs the vision smoke test (harbor/smoke-vision) against a model:
@@ -151,8 +156,10 @@ class Anthropic:
 class OpenAICompatible:
     """Any OpenAI-compatible Chat Completions endpoint."""
 
-    def __init__(self, model: str, key: str, base_url: str | None = None, max_tokens: int = 4096):
+    def __init__(self, model: str, key: str, base_url: str | None = None, max_tokens: int = 4096,
+                 reasoning_effort: str | None = None):
         self.model, self.key, self.max_tokens = model, key, max_tokens
+        self.reasoning_effort = reasoning_effort
         self.url = (base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
         self.messages: list[dict] = []
 
@@ -162,8 +169,11 @@ class OpenAICompatible:
         self.messages = [{"role": "system", "content": system}, {"role": "user", "content": task}]
 
     def request(self) -> dict:
-        return {"model": self.model, "messages": self.messages, "tools": self.tools,
+        body = {"model": self.model, "messages": self.messages, "tools": self.tools,
                 "max_completion_tokens": self.max_tokens}
+        if self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
+        return body
 
     def step(self) -> Turn:
         r = post_json(self.url, {"authorization": f"Bearer {self.key}"}, self.request())
@@ -233,8 +243,11 @@ def make_provider(args) -> object:
     key = os.environ.get(env)
     if not key:
         raise SystemExit(f"Set {env} (or pass --key-env NAME).")
-    cls = Anthropic if args.provider == "anthropic" else OpenAICompatible
-    return cls(args.model, key, args.base_url, args.max_tokens)
+    if args.provider == "anthropic":
+        if args.reasoning_effort:
+            raise SystemExit("--reasoning-effort is for --provider openai.")
+        return Anthropic(args.model, key, args.base_url, args.max_tokens)
+    return OpenAICompatible(args.model, key, args.base_url, args.max_tokens, args.reasoning_effort)
 
 
 # ------------------------------------------------------------ MCP sessions
@@ -449,6 +462,7 @@ def main() -> int:
         p.add_argument("--base-url", help="API base URL (for OpenAI-compatible endpoints other than OpenAI)")
         p.add_argument("--key-env", help="environment variable holding the API key")
         p.add_argument("--max-tokens", type=int, default=4096, help="output tokens per model turn")
+        p.add_argument("--reasoning-effort", help="openai only: sent as reasoning_effort, e.g. none or low")
         p.add_argument("--out", default="runs")
         if name == "run":
             p.add_argument("--levels", type=int, nargs="+", default=[1])

@@ -83,7 +83,7 @@ uv run -m plumberbench.agent run --provider anthropic --model MODEL --levels 1 2
 uv run -m plumberbench.agent run --provider openai --model MODEL --base-url https://generativelanguage.googleapis.com/v1beta/openai/ --key-env GEMINI_API_KEY
 ```
 
-`anthropic` uses the Messages API with prompt caching. `openai` works with any OpenAI-compatible endpoint. Each run writes `runs/<provider>-<model>-<time>/`: per episode the server log, transcript, replay page and summary, plus a summary table.
+`anthropic` uses the Messages API with prompt caching. `openai` works with any OpenAI-compatible endpoint through Chat Completions; OpenAI's newer models call tools there only with reasoning off, so add `--reasoning-effort none` for them. Each run writes `runs/<provider>-<model>-<time>/`: per episode the server log, transcript, replay page and summary, plus a summary table.
 
 ## Playing it yourself
 

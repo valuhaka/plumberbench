@@ -116,3 +116,12 @@ def test_verdicts():
     assert agent.smoke_verdict("999999", shown).startswith("BLIND")
     assert agent.smoke_verdict("", shown) == "NO ANSWER"
     assert agent.smoke_verdict("555555", shown[:3]).startswith("CALLS")
+
+
+def test_reasoning_effort_is_sent_only_when_asked():
+    plain = agent.OpenAICompatible("m", "key")
+    plain.start("system", "task", [])
+    assert "reasoning_effort" not in plain.request()
+    off = agent.OpenAICompatible("m", "key", reasoning_effort="none")
+    off.start("system", "task", [])
+    assert off.request()["reasoning_effort"] == "none"

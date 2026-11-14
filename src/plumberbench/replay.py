@@ -69,8 +69,8 @@ def build(log_dir: Path) -> str:
     rows = [json.loads(line) for line in (log_dir / "episode.jsonl").read_text().splitlines() if line.strip()]
     result = json.loads((log_dir / "result.json").read_text())
     steps = []
+    img = None  # a step without a new picture still shows the last one
     for r in rows:
-        img = None
         if r.get("frame") and (log_dir / r["frame"]).exists():
             mime = "image/png" if r["frame"].endswith(".png") else "image/jpeg"
             img = f"data:{mime};base64," + base64.b64encode((log_dir / r["frame"]).read_bytes()).decode()

@@ -99,8 +99,10 @@ def score(s: State) -> dict:
         "diagnosis_correct": bool(named),
         "diagnosis_reported": reported,   # what `finish` named
         "diagnosis_expected": present,    # the fault types actually present; must match exactly
-        "finished": s.done and not s.timed_out,
+        "finished": s.diagnosis is not None,      # `finish` was called
         "timed_out": s.timed_out,
+        "free_actions": s.free_actions,
+        "free_action_limit_hit": s.stopped == "free actions",
         "functional_test": checks,
         "consistent": all(checks.values()) == (all(fixed) and not worse),
     }

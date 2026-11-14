@@ -25,6 +25,7 @@ DRAIN_RATE = 2       # units per tick a clear drain carries
 BUCKET_CAP = 10      # units the bucket holds
 SPRAY_RATE = 3       # units per tick from an undone joint under pressure
 DAMAGE_CAP = 20      # damage at which the damage part of the score reaches zero
+FREE_ACTION_LIMIT = 200  # actions that take no time (incl. refused ones) before the job ends
 
 PRESSURE = {"open": 2, "half": 1, "closed": 0}
 FLOW_NAME = {0: "none", 1: "weak", 2: "full"}
@@ -108,6 +109,8 @@ class State:
     flow_tick: int = -99            # tick the `flow` reading belongs to
     done: bool = False
     timed_out: bool = False
+    free_actions: int = 0           # actions so far that took no time, refused ones included
+    stopped: str | None = None      # why the job ended without `finish`: "time" or "free actions"
     diagnosis: list[str] | None = None
     layout: dict[str, dict] = field(default_factory=dict)  # pipe layout under each sink (layout.py)
 

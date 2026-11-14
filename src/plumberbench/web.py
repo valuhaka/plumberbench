@@ -318,6 +318,7 @@ label.check span { color: var(--muted); font-size: 0.9rem; }
     <div><span>Time used</span><span class="val"><b id="st-time"></b><span class="meter"><span style="display:block" id="st-timebar"></span></span></span></div>
     <div><span>Damage</span><span class="val"><b id="st-dmg"></b><span class="meter damage"><span style="display:block" id="st-dmgbar"></span></span></span></div>
     <div><span>Washers</span><b id="st-washers"></b></div>
+    <div><span>Free actions</span><b id="st-free"></b></div>
     <div><span>Bucket</span><b id="st-bucket"></b></div>
     <div><span>Where</span><b id="st-where"></b></div>
   </section>
@@ -389,6 +390,8 @@ function parseStatus(text) {
   $("st-timebar").style.width = (100 * t / budget) + "%";
   $("st-dmg").textContent = dmg; $("st-dmgbar").style.width = Math.min(100, 5 * dmg) + "%";
   $("st-washers").textContent = washers;
+  const free = /free actions (\d+)\/(\d+)/.exec(text);
+  if (free) $("st-free").textContent = free[1] + " of " + free[2];
   $("st-bucket").textContent = cap(bucket);
   room = r; view = v;
   const roomName = S.rooms.find(([k]) => k === r)?.[1] || r;
@@ -523,6 +526,7 @@ const LABELS = {repair: "Repair", faults_fixed: "Faults fixed", faults_total: "F
   damage: "Damage", time_used: "Time used", time_budget: "Time budget", diagnosis_correct: "Diagnosis right",
   diagnosis_reported: "You reported", diagnosis_expected: "Fault types present",
   finished: "Reported finished", timed_out: "Ran out of time", consistent: "Score and house test agree",
+  free_actions: "Actions that took no time", free_action_limit_hit: "Hit the free-action limit",
   seed: "House", level: "Level", steps: "Steps"};
 const faultName = key => S.faults.find(([k]) => k === key)?.[1] || key;
 function fmt(v, k) {

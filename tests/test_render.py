@@ -225,3 +225,33 @@ def test_a_process_that_rendered_exits_promptly(render, from_worker):
     done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60,
                           env={**__import__("os").environ, "PYTHONPATH": str(src)})
     assert done.returncode == 0 and "rendered" in done.stdout, done.stderr
+
+
+def test_a_picture_is_sent_only_when_the_view_changed(render):
+    """No new picture when nothing in view changed; the text says which picture still holds."""
+    from plumberbench.env import Episode
+    ep = Episode(0, 1, render=True)
+    first = ep.act("look", view="counter")
+    assert first.image is not None and "PICTURE:" not in first.text
+    idle = ep.act("wait", ticks=1)
+    assert idle.image is None and idle.hotspots == []
+    assert "PICTURE: unchanged since step 1." in idle.text
+    assert ep.picture_step() == 1
+    running = ep.act("run_tap", side="cold", ticks=1)          # the stream shows
+    assert running.image is not None and ep.picture_step() == 3
+    ep.act("look", view="under_sink")
+    tag = ep.state.comps["trap.kitchen"].tag
+    close = ep.act("inspect", tag=tag)
+    assert close.image is not None
+    again = ep.act("inspect", tag=tag)                           # the same close-up
+    assert again.image is None and f"unchanged since step {close.text.split()[2]}" in again.text
+    back = ep.act("look", view="under_sink")                     # whole view again: a change
+    assert back.image is not None
+
+
+def test_facts_stay_last_when_a_picture_is_skipped(render):
+    from plumberbench.env import Episode
+    ep = Episode(0, 1, facts=True, render=True)
+    ep.act("look", view="counter")
+    lines = ep.act("wait", ticks=1).text.splitlines()
+    assert lines[-1].startswith("FACTS: ") and lines[-2].startswith("PICTURE: ")

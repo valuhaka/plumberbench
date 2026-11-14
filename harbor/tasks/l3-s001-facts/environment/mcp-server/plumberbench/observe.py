@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 
 from .sim import is_wet
-from .world import BUCKET_CAP, FIXTURES, FLOW_NAME, State
+from .world import BUCKET_CAP, FIXTURES, FLOW_NAME, FREE_ACTION_LIMIT, State
 
 
 def facts(s: State) -> list[dict]:
@@ -59,16 +59,19 @@ def status(s: State) -> str:
     if s.bucket_at:
         bucket = f"bucket under {s.comps[s.bucket_at].tag} ({s.bucket_fill}/{BUCKET_CAP})"
     return (f"step {s.step} | time {s.tick}/{s.budget} | damage {s.damage} | "
-            f"{s.room}/{s.view} | {bucket} | washers {s.washers}")
+            f"{s.room}/{s.view} | {bucket} | washers {s.washers} | "
+            f"free actions {s.free_actions}/{FREE_ACTION_LIMIT}")
 
 
 def text(s: State, message: str, with_facts: bool) -> str:
     """One response, in labelled sections:
 
-        STATUS:   step, time used/budget, damage, where you are, bucket, washers
+        STATUS:   step, time used/budget, damage, where you are, bucket, washers,
+                  actions so far that took no time / the limit
         RESULT:   what the action did
         YOU HEAR: sounds, or "nothing unusual"
         IN VIEW:  tags of the parts in the current view
+        PICTURE:  only when no new picture is sent: nothing in view changed since that step
         FACTS:    (facts mode only) JSON list of what the view shows
     """
     lines = ["STATUS: " + status(s), "RESULT: " + message]

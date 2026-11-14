@@ -25,10 +25,18 @@ class Obs:
     error: bool = False
 
 
+def _with_line(text: str, line: str) -> str:
+    """Add a section line before FACTS (which, when present, stays last)."""
+    lines = text.split("\n")
+    at = next((i for i, l in enumerate(lines) if l.startswith("FACTS: ")), len(lines))
+    return "\n".join(lines[:at] + [line] + lines[at:])
+
+
 class Episode:
     def __init__(self, seed: int, level: int, facts: bool = True, render: bool = True,
                  log_dir: str | Path | None = None):
         self.state = generate(seed, level)
+        self._shown: tuple[str, int] | None = None  # (digest, step) of the last picture sent
         self.with_facts = facts
         self.render = render
         self.actions: list[tuple[str, dict]] = []
@@ -40,18 +48,30 @@ class Episode:
 
     def act(self, tool: str, **args) -> Obs:
         s = self.state
+        self.actions.append((tool, args))  # refused ones too: they count toward the free-action limit
         try:
             message = sim.apply(s, tool, args)
         except sim.ActionError as e:
-            return Obs(text=observe.error(s, str(e)), error=True)
-        self.actions.append((tool, args))
+            obs = Obs(text=observe.error(s, str(e)), error=True)
+            self._log(tool, args, obs, refused=True)
+            return obs
         obs = Obs(text=observe.text(s, message, self.with_facts), facts=observe.facts(s))
         if self.render:
             from .render import render  # imported late so headless tests need no GL
             focus = s.by_tag(args["tag"]).tag if tool == "inspect" else None
-            obs.image, obs.hotspots = render(s, focus)
+            image, hotspots, content = render(s, focus)
+            if self._shown and self._shown[0] == content:
+                # Nothing in view changed: no new picture, and the text says which one still holds.
+                obs.text = _with_line(obs.text, f"PICTURE: unchanged since step {self._shown[1]}.")
+            else:
+                obs.image, obs.hotspots = image, hotspots
+                self._shown = (content, s.step)
         self._log(tool, args, obs)
         return obs
+
+    def picture_step(self) -> int | None:
+        """Step of the picture currently on screen, if any."""
+        return self._shown[1] if self._shown else None
 
     def result(self) -> dict:
         r = score(self.state)
@@ -66,7 +86,7 @@ class Episode:
 
     # ------------------------------------------------------------- logging
 
-    def _log(self, tool: str, args: dict, obs: Obs) -> None:
+    def _log(self, tool: str, args: dict, obs: Obs, refused: bool = False) -> None:
         if not self.log_dir:
             return
         s = self.state
@@ -75,7 +95,7 @@ class Episode:
             frame = f"step_{s.step:03d}.jpg"
             (self.log_dir / frame).write_bytes(obs.image)
         row = {"step": s.step, "tool": tool, "args": args, "tick": s.tick,
-               "damage": s.damage, "text": obs.text, "frame": frame}
+               "damage": s.damage, "text": obs.text, "frame": frame, "refused": refused}
         with (self.log_dir / "episode.jsonl").open("a") as f:
             f.write(json.dumps(row) + "\n")
         self._write_result()

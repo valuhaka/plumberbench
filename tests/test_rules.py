@@ -165,8 +165,10 @@ def test_refit_uses_a_washer_and_mends_the_joint():
 
 
 def test_impossible_actions_cost_nothing():
+    """Refused actions change nothing but the count of actions that took no time."""
     s = house()
     before = dataclasses.asdict(s)
+    before.pop("free_actions")
     for tool, args in [
         ("go", {"room": "kitchen"}), ("go", {"room": "attic"}), ("look", {"view": "wall"}),
         ("inspect", {"tag": "Z9"}), ("inspect", {"tag": tag(s, "main")}),
@@ -179,7 +181,9 @@ def test_impossible_actions_cost_nothing():
     ]:
         with pytest.raises(ActionError):
             apply(s, tool, args)
-    assert dataclasses.asdict(s) == before
+    after = dataclasses.asdict(s)
+    assert after.pop("free_actions") == 14
+    assert after == before
 
 
 def test_only_parts_in_view_can_be_touched():
@@ -190,10 +194,34 @@ def test_only_parts_in_view_can_be_touched():
                        ("set_valve", {"tag": tag(s, "stop.bathroom.cold"), "position": "closed"})]:
         with pytest.raises(ActionError, match="not in the current view"):
             apply(s, tool, args)
-    assert dataclasses.asdict(s) == before
+    assert {**dataclasses.asdict(s), "free_actions": 0} == before
     apply(s, "look", {"view": "counter"})
     apply(s, "repair", {"tag": tag(s, "aer.kitchen"), "method": "clear"})
     assert s.comps["aer.kitchen"].fault is None
+
+
+def test_free_action_limit_ends_the_job_as_it_stands():
+    from plumberbench.world import FREE_ACTION_LIMIT
+    s = house({"type": "aerator_clog", "id": "aer.kitchen"})
+    apply(s, "look", {"view": "counter"})
+    apply(s, "repair", {"tag": tag(s, "aer.kitchen"), "method": "clear"})  # takes time: not counted
+    assert s.free_actions == 1
+    for i in range(FREE_ACTION_LIMIT - 2):
+        if i % 2:
+            apply(s, "look", {"view": "counter"})
+        else:
+            with pytest.raises(ActionError):
+                apply(s, "inspect", {"tag": "Z9"})
+    assert not s.done and s.free_actions == FREE_ACTION_LIMIT - 1
+    with pytest.raises(ActionError, match="job is over as it stands"):
+        apply(s, "inspect", {"tag": "Z9"})
+    assert s.done and s.stopped == "free actions" and not s.timed_out
+    with pytest.raises(ActionError, match="over"):
+        apply(s, "look", {"view": "counter"})
+    from plumberbench.judge import score
+    r = score(s)
+    assert r["free_action_limit_hit"] and not r["finished"]
+    assert r["repair"] == 1.0 and 0.7 < r["score"] < 0.95, "the fix still counts; no diagnosis was reported"
 
 
 def test_time_budget_ends_the_job():

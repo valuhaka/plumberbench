@@ -26,6 +26,7 @@ Branch valves are not labelled with the fixture they feed.
 The rules are simple and exact.
 
 - Time moves in ticks. Most actions take time; the status line shows time used and the time budget. When the budget runs out, the job ends as it stands.
+- At most 200 actions may take no time: looking around, the briefing, and refused actions all count. After the 200th, the job ends as it stands, as when time runs out. The status line shows the count.
 - A supply pipe is under pressure when every valve between the main and that point is open. A half-open valve on the way gives weak flow; a closed valve gives none, and takes the pressure off everything after it.
 - A leaking supply joint drips 1 unit per tick whenever it is under pressure, whether or not a tap is running. A supply joint that is undone while under pressure sprays 3 units per tick.
 - A drain carries water only while there is water in its basin; a clear drain empties 2 units per tick. A leaking drain joint drips only while water passes it or stands above it.
@@ -45,7 +46,8 @@ The rules are simple and exact.
 - After `run_tap`, the picture shows the water as it ran on the last tick: a full flow is a solid column, a weak flow only a broken trickle of drops, no flow nothing at all. Running `both` shows the two sides together, so run them one at a time to compare.
 - Blue beads under a joint mean it is dripping right now. A blue pool on the floor is water; a brown patch is an old, dry stain.
 - The text of each response has labelled sections: `STATUS` (step, time used/budget, damage, where you are, the bucket, washers left), `RESULT` (what the action did), `YOU HEAR` (dripping or spraying), and `IN VIEW` (the tags in the current view). A refused action returns `STATUS` and `ERROR` only.
-- The step, time, damage and location are also printed at the top of the picture. If the step number in the picture differs from the one in the text, the picture is stale.
+- The step, time, damage and location are also printed at the top of the picture.
+- When nothing in view has changed, no new picture is sent; the text then says `PICTURE: unchanged since step N`, and the last picture you got (stamped step N) still shows the view. Otherwise, if the step stamped in the picture differs from the one in the text, the picture is stale.
 - Each response also ends with a `FACTS:` section: a JSON list of what the view shows,
   following the same visibility rules as the picture (you cannot see inside a pipe that is closed).
 

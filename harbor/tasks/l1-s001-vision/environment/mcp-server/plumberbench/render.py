@@ -15,6 +15,7 @@ browser play page uses them to make the labels clickable.
 from __future__ import annotations
 
 import atexit
+import hashlib
 import io
 import math
 import os
@@ -40,6 +41,7 @@ from .scene import Scene, build  # noqa: E402
 from .world import State  # noqa: E402
 
 WIDTH, HEIGHT = 800, 600
+STAMP_H = 31   # rows taken by the status stamp at the top of every picture
 _cache: dict[str, tuple] = {}
 
 
@@ -248,10 +250,11 @@ atexit.register(close_all)
 
 def render_array(s: State, focus: str | None = None) -> tuple[np.ndarray, list[dict]]:
     """Pixels of the current view (or a close-up of `focus`) and the label hotspots."""
-    return _gl.run(_render_array, s, focus)
+    pixels, hotspots, _ = _gl.run(_render_array, s, focus)
+    return pixels, hotspots
 
 
-def _render_array(s: State, focus: str | None) -> tuple[np.ndarray, list[dict]]:
+def _render_array(s: State, focus: str | None) -> tuple[np.ndarray, list[dict], str]:
     sc = build(s, focus)
     model_now = mujoco.MjModel.from_xml_string(to_xml(sc))
     model, data, renderer = _renderer_for(sc, model_now)
@@ -266,8 +269,10 @@ def _render_array(s: State, focus: str | None) -> tuple[np.ndarray, list[dict]]:
             placed.append((tag, u, v))
     _notes(img, model, data, sc)
     hotspots = _labels(img, placed)
+    # What the picture shows, apart from the status stamp: equal digests, equal pictures.
+    content = hashlib.sha256(np.asarray(img)[STAMP_H:].tobytes()).hexdigest()
     _stamp(img, s, focus)
-    return np.asarray(img), hotspots
+    return np.asarray(img), hotspots, content
 
 
 def encode(pixels: np.ndarray) -> bytes:
@@ -276,7 +281,8 @@ def encode(pixels: np.ndarray) -> bytes:
     return buf.getvalue()
 
 
-def render(s: State, focus: str | None = None) -> tuple[bytes, list[dict]]:
-    """JPEG of the current view (or a close-up of `focus`) and the label hotspots."""
-    pixels, hotspots = render_array(s, focus)
-    return encode(pixels), hotspots
+def render(s: State, focus: str | None = None) -> tuple[bytes, list[dict], str]:
+    """JPEG of the current view (or a close-up of `focus`), the label hotspots, and a
+    digest of everything the picture shows below the status stamp."""
+    pixels, hotspots, content = _gl.run(_render_array, s, focus)
+    return encode(pixels), hotspots, content

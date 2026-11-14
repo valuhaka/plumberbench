@@ -80,7 +80,9 @@ def _help() -> str:
     width = max(len(c[0]) for c in COMMANDS) + 2
     lines = ["Commands, and the time units each takes:", ""]
     lines += [f"  {syntax:<{width}}{what} ({cost})" for syntax, what, cost in COMMANDS]
-    lines += ["", "  score, rules, help, quit (terminal only): take no time", "", "Fault types:", ""]
+    lines += ["", "  score, rules, help, quit (terminal only): not actions in the house, take no time",
+              "  At most 200 actions may take no time, refused ones included; then the job ends.",
+              "", "Fault types:", ""]
     lines += [f"  {d:<16}{DIAGNOSIS_TEXT[d]}" for d in DIAGNOSES]
     return "\n".join(lines)
 

@@ -53,6 +53,7 @@ mcp = FastMCP(
         "time used/time budget. Each response has a picture of the view you are looking at, with "
         "every part tagged (V valve, J joint, T trap, C cleanout plug, A tap aerator), and text in "
         "sections: STATUS, RESULT, YOU HEAR, IN VIEW. You can only act on parts in the current view. "
+        "At most 200 actions may take no time (refused ones included); then the job ends. "
         "Call `briefing` first. Call `finish` once, when the job is done."
     ),
 )

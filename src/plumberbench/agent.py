@@ -15,6 +15,7 @@ The key comes from ANTHROPIC_API_KEY or OPENAI_API_KEY, or the variable named by
     python -m plumberbench.agent run --provider openai --model MODEL \\
         --base-url https://generativelanguage.googleapis.com/v1beta/openai/ --key-env GEMINI_API_KEY
     python -m plumberbench.agent smoke --provider anthropic --model MODEL --repeat 3
+    uv run --extra agents -m plumberbench.agent run --provider openai-agents --model MODEL
 
 Providers:
     anthropic  Messages API. Pictures go inside tool results. Prompt caching on:
@@ -25,6 +26,9 @@ Providers:
                their pictures follow in one user message, as OpenCode does.
                --reasoning-effort sets `reasoning_effort`; OpenAI's newer models
                allow function calling over Chat Completions only with `none`.
+    openai-agents  The OpenAI Agents SDK, over the Responses API: its own agent loop,
+               reasoning on while calling tools, pictures inside tool results,
+               traces in the OpenAI dashboard. See agents_sdk.py.
     scripted   No model: replays a list of tool calls (for tests and dry runs).
 
 `smoke` runs the vision smoke test (harbor/smoke-vision) against a model:
@@ -239,14 +243,21 @@ class Scripted:
 def make_provider(args) -> object:
     if args.provider == "scripted":
         raise SystemExit("The scripted provider is for tests; give it calls in code.")
-    env = args.key_env or {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}[args.provider]
+    env = args.key_env or {"anthropic": "ANTHROPIC_API_KEY"}.get(args.provider, "OPENAI_API_KEY")
     key = os.environ.get(env)
     if not key:
         raise SystemExit(f"Set {env} (or pass --key-env NAME).")
     if args.provider == "anthropic":
         if args.reasoning_effort:
-            raise SystemExit("--reasoning-effort is for --provider openai.")
+            raise SystemExit("--reasoning-effort is for the OpenAI providers.")
         return Anthropic(args.model, key, args.base_url, args.max_tokens)
+    if args.provider == "openai-agents":
+        try:
+            from .agents_sdk import AgentsSDK
+            import agents  # noqa: F401
+        except ImportError:
+            raise SystemExit("The Agents SDK is not installed: run with  uv run --extra agents -m plumberbench.agent ...")
+        return AgentsSDK(args.model, key, args.base_url, args.max_tokens, args.reasoning_effort)
     return OpenAICompatible(args.model, key, args.base_url, args.max_tokens, args.reasoning_effort)
 
 
@@ -286,6 +297,8 @@ def start_plumberbench(seed: int, level: int, facts: bool, log_dir: Path) -> tup
 
 async def play(provider, url: str, task: str, max_turns: int, transcript: Path) -> dict:
     """The agent loop: the model calls tools, the server answers, until the job ends or the model stops."""
+    if hasattr(provider, "play"):  # a provider with its own agent loop (the Agents SDK)
+        return await provider.play(url, task, max_turns, transcript, SYSTEM)
     from mcp.client.session import ClientSession
     try:
         from mcp.client.streamable_http import streamablehttp_client
@@ -457,12 +470,12 @@ def main() -> int:
     sub = ap.add_subparsers(dest="command", required=True)
     for name in ("run", "smoke"):
         p = sub.add_parser(name)
-        p.add_argument("--provider", choices=("anthropic", "openai"), required=True)
+        p.add_argument("--provider", choices=("anthropic", "openai", "openai-agents"), required=True)
         p.add_argument("--model", required=True)
         p.add_argument("--base-url", help="API base URL (for OpenAI-compatible endpoints other than OpenAI)")
         p.add_argument("--key-env", help="environment variable holding the API key")
         p.add_argument("--max-tokens", type=int, default=4096, help="output tokens per model turn")
-        p.add_argument("--reasoning-effort", help="openai only: sent as reasoning_effort, e.g. none or low")
+        p.add_argument("--reasoning-effort", help="OpenAI providers: e.g. none, low, medium, high")
         p.add_argument("--out", default="runs")
         if name == "run":
             p.add_argument("--levels", type=int, nargs="+", default=[1])

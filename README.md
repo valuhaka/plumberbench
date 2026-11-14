@@ -72,6 +72,8 @@ Each task runs the simulator in a sidecar container (`mcp-server`) and connects 
 
 **Run the smoke test first, with the agent and model you will be judged with.** `harbor/smoke-vision` shows a new six-digit number in a picture on each of five calls and asks for the fifth. Its verifier reports PASS, STALE (an earlier picture: OpenCode issue #51652) or BLIND (pictures are not reaching the model). Once a version passes, pin it: `OPENCODE_VERSION=x.y.z ./scripts/judge_runs.sh ...`.
 
+`AGENT=codex ./scripts/judge_runs.sh openai/MODEL` does the same runs with Codex instead of OpenCode (Harbor's Codex agent supports MCP servers and passes their pictures on). The challenge is judged with OpenCode, so treat Codex runs as a second harness.
+
 ## Running a model locally
 
 `plumberbench.agent` starts one MCP server per episode and drives a model through it with the same tools, pictures and text as in Harbor. It is quicker than Harbor but its agent loop is not OpenCode's, so confirm a few tasks through Harbor.
@@ -81,9 +83,10 @@ export ANTHROPIC_API_KEY=...
 uv run -m plumberbench.agent smoke --provider anthropic --model MODEL --repeat 3
 uv run -m plumberbench.agent run --provider anthropic --model MODEL --levels 1 2 3 4 --seeds 0-1 --mode facts vision
 uv run -m plumberbench.agent run --provider openai --model MODEL --base-url https://generativelanguage.googleapis.com/v1beta/openai/ --key-env GEMINI_API_KEY
+uv run --extra agents -m plumberbench.agent run --provider openai-agents --model MODEL --reasoning-effort low --levels 1 --seeds 0-1
 ```
 
-`anthropic` uses the Messages API with prompt caching. `openai` works with any OpenAI-compatible endpoint through Chat Completions; OpenAI's newer models call tools there only with reasoning off, so add `--reasoning-effort none` for them. Each run writes `runs/<provider>-<model>-<time>/`: per episode the server log, transcript, replay page and summary, plus a summary table.
+`anthropic` uses the Messages API with prompt caching. `openai` works with any OpenAI-compatible endpoint through Chat Completions; OpenAI's newer models call tools there only with reasoning off, so add `--reasoning-effort none` for them. `openai-agents` runs the OpenAI Agents SDK over the Responses API instead: reasoning stays on while it calls tools, pictures arrive inside the tool results, and each run shows up as a trace in the OpenAI dashboard. Each run writes `runs/<provider>-<model>-<time>/`: per episode the server log, transcript, replay page and summary, plus a summary table.
 
 ## Playing it yourself
 
@@ -105,7 +108,7 @@ npx wrangler deploy
 
 ```
 src/plumberbench/   world, sim, layout, generate (the house); scene, render (pictures); observe, env, server (MCP);
-                    judge, solver, baselines; tasks (Harbor folders); play, web (people); agent (local runner);
+                    judge, solver, baselines; tasks (Harbor folders); play, web (people); agent, agents_sdk (local runner);
                     replay, lander, demo (pages)
 harbor/smoke-vision/   harness check: do pictures reach the model, and stay fresh?
 pb_agents/             stop-early and close-the-main baseline agents for Harbor

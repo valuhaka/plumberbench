@@ -13,7 +13,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "mcp", "playwright"]
+dev = ["pytest", "mcp", "playwright", "openai-agents>=0.24"]
+agents = ["openai-agents>=0.24"]
 
 [build-system]
 requires = ["setuptools>=68"]

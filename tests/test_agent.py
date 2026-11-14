@@ -125,3 +125,56 @@ def test_reasoning_effort_is_sent_only_when_asked():
     off = agent.OpenAICompatible("m", "key", reasoning_effort="none")
     off.start("system", "task", [])
     assert off.request()["reasoning_effort"] == "none"
+
+
+class SDKModel:
+    """An Agents SDK model that plays `moves`, one per request, and records what it is sent."""
+
+    def __init__(self, moves):
+        from agents.models.interface import Model
+        self.moves, self.n, self.inputs = moves, 0, []
+        outer = self
+
+        class _M(Model):
+            async def get_response(self, system_instructions, input, model_settings, tools, output_schema,
+                                   handoffs, tracing, **kw):
+                return outer.respond(input, model_settings)
+
+            def stream_response(self, *a, **kw):
+                raise NotImplementedError
+
+        self.model = _M()
+
+    def respond(self, input, settings):
+        from agents.items import ModelResponse
+        from agents.usage import Usage
+        from openai.types.responses import ResponseFunctionToolCall, ResponseOutputMessage, ResponseOutputText
+        self.inputs.append(json.loads(json.dumps(input, default=str)))
+        self.settings = settings
+        n, self.n = self.n, self.n + 1
+        if n >= len(self.moves):
+            out = [ResponseOutputMessage(id=f"m{n}", type="message", role="assistant", status="completed",
+                                         content=[ResponseOutputText(type="output_text", text="All done.",
+                                                                     annotations=[])])]
+        else:
+            tool, args = self.moves[n]
+            out = [ResponseFunctionToolCall(type="function_call", id=f"fc{n}", call_id=f"c{n}", name=tool,
+                                            arguments=json.dumps(args), status="completed")]
+        return ModelResponse(output=out, usage=Usage(requests=1, input_tokens=10, output_tokens=5,
+                                                     total_tokens=15), response_id=None)
+
+
+def test_a_run_through_the_agents_sdk_reproduces_the_reference_and_shows_the_pictures(tmp_path):
+    pytest.importorskip("agents")
+    from plumberbench.agents_sdk import AgentsSDK
+    moves, want = reference_moves()
+    fake = SDKModel(moves)
+    provider = AgentsSDK("test-model", "key", reasoning_effort="low", model_obj=fake.model)
+    summary = agent.episode(provider, SEED, LEVEL, facts=False, out=tmp_path, max_turns=200)
+    assert summary["score"] == want > 0.9
+    assert summary["stop"] == "job over" and summary["tool_calls"] == len(moves)
+    assert fake.settings.parallel_tool_calls is False and fake.settings.reasoning.effort == "low"
+    last = json.dumps(fake.inputs[-1])
+    assert '"input_image"' in last and "data:image/jpeg;base64," in last
+    lines = [json.loads(x) for x in (tmp_path / "transcript.jsonl").read_text().splitlines()]
+    assert sum("tool" in x for x in lines) == len(moves) and any(x.get("pictures") for x in lines)

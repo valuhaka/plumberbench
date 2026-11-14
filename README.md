@@ -10,6 +10,7 @@ Built for AfterQuery's *Break the Agent* challenge at Junction 2026, on Harbor w
 
 ```bash
 ./scripts/check.sh                                   # tests + difficulty ladder; no Docker, no credits
+                                                     # (the screen-size test needs Chrome; skips are listed with reasons)
 uv run -m plumberbench.play --seed 3 --level 2 --web # play a house yourself in the browser
 uv run -m plumberbench.play --seed 3 --level 2       # ...or in the terminal (watch play/view.html)
 ./scripts/judge_runs.sh provider/model-name          # the judged runs, through Harbor (Docker + credits)

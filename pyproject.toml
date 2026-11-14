@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "mcp"]
+dev = ["pytest", "mcp", "playwright"]
 
 [build-system]
 requires = ["setuptools>=68"]

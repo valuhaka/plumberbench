@@ -9,7 +9,7 @@ You work only through the tools of the `plumberbench` MCP server. Every tool cal
 **Kitchen and bathroom** each have two views:
 
 - `counter`: the basin, with level marks numbered 1 to 8 on its back wall; a mixer tap with the hot handle (red) on the left and the cold handle (blue) on the right; and the aerator (A) on the end of the spout.
-- `under_sink`: the hot supply (red, left) and the cold supply (blue, right). Each comes out of the wall through a **wall-side joint**, then a **stop valve**, then a **tap-side joint**, then a hose up to the tap. In the middle is the drain: the tailpiece from the basin, a slip joint, the **trap** (T, the U-bend), a second slip joint, and the arm into the wall.
+- `under_sink`: the hot supply (red) and the cold supply (blue). Each comes out of the back wall through a **wall-side joint**, then a **stop valve**, then a **tap-side joint**, then a hose up to the tap. Where the two supplies come out differs from house to house: one on each side, either way round, or both on the same side, at different heights. In the middle is the drain: the tailpiece from the basin, a slip joint, the **trap** (T, the U-bend, which may bend to either side and sit higher or lower), a second slip joint, and the arm into the wall.
 
 **Utility room** has one view, `wall`:
 
@@ -65,6 +65,15 @@ Your score is between 0 and 1. When you call `finish`, or time runs out, the hou
 
 - **repair**: the share of faults fixed, minus 0.25 for each thing left worse than you found it.
 - **dryness**: 1 - damage / 20 (not below 0). **time left**: 1 - time used / time budget.
-- **diagnosis**: 1 if the list you give to `finish` is exactly the set of fault types present, from: `trap_clog`, `branch_clog`, `supply_leak`, `drain_leak`, `aerator_clog`, `valve_not_open`.
+- **diagnosis**: 1 if the list you give to `finish` is exactly the set of fault types present.
+
+The fault types:
+
+- `trap_clog`: a blocked trap, the U-bend under a basin.
+- `branch_clog`: a blocked drain branch, shared by both basins, behind the cleanout plug in the utility room.
+- `supply_leak`: a leaking joint on a hot or cold supply line.
+- `drain_leak`: a leaking joint on the drain under a basin.
+- `aerator_clog`: a blocked aerator, the screen on the end of a tap's spout.
+- `valve_not_open`: a valve that should be open, left closed or half open.
 
 Fixing nothing scores 0, whatever else you do.

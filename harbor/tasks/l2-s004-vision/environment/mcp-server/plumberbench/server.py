@@ -33,7 +33,7 @@ from starlette.responses import JSONResponse, PlainTextResponse
 
 from . import observe
 from .env import Episode
-from .world import DIAGNOSES
+from .world import DIAGNOSES, DIAGNOSIS_TEXT
 
 SEED = int(os.environ.get("PB_SEED", "0"))
 LEVEL = int(os.environ.get("PB_LEVEL", "1"))
@@ -179,7 +179,8 @@ def repair(tag: Tag, method: Literal["tighten", "clear"]):
 
 @mcp.tool
 def finish(diagnosis: Annotated[list[Literal[DIAGNOSES]], Field(  # type: ignore[valid-type]
-        description="Every fault you found and fixed, from: " + ", ".join(DIAGNOSES))]):
+        description="Every fault type you found and fixed. " + " ".join(
+            f"{d}: {DIAGNOSIS_TEXT[d]}." for d in DIAGNOSES))]):
     """Report the job done and stop. Takes no time. After this, no action is possible.
 
     The house is then tested: every tap must run full on hot and cold, every

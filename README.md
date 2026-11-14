@@ -17,7 +17,9 @@ uv run -m plumberbench.play --seed 3 --level 2       # ...or in the terminal (wa
 
 Rendering works on Linux (headless EGL, CPU is enough) and macOS (CGL).
 
-**Playing it yourself.** The browser page shows the picture with clickable tags (each opens the actions that kind of part allows, with their time cost), tabs for rooms and views, the tap and wait controls, status bars and a log. Every button just types a command into the same command handler the terminal uses. `tests/test_views.py` runs one sequence of commands through the agent's MCP server, the terminal and the browser and requires the same text and the same picture, byte for byte, at every step. It also requires that the browser adds nothing: fixed payload fields, a static page, menus that depend only on a tag's letter, and clickable areas only where a label is already drawn.
+**Playing it yourself.** The browser page keeps the job in view at all times: the tenant's complaint and the goal in a banner, with the button to report the job finished. Below it are the picture with clickable tags (each opens what that kind of part allows, with its time cost), big Move buttons that say what each move costs, tap and wait controls, the output with a command line at its foot (a click anywhere in it reaches the command line) and the history in its corner, and the status stacked in a box at the top right. Help shows the page basics, the commands and the full rules. Reporting the job opens a dialog that explains each fault type. When the job ends, both the browser and the terminal show the full result straight away; the browser shows the score large with every other fact in a table. In the terminal, `help` lists the commands with their time costs and `rules` prints the agent's instruction word for word.
+
+Every button just types a command into the same command handler the terminal uses. `tests/test_views.py` runs one sequence of commands through the agent's MCP server, the terminal and the browser and requires the same text and the same picture, byte for byte, at every step, and the same result at the end. It also requires that the browser adds nothing: fixed payload fields, a static page, menus that depend only on a tag's letter, clickable areas only where a label is already drawn, and every sentence the page states about the task quoted from the agent's instruction, and every cost and fault description present in the terminal's `help`. The page's styling follows valuhaka/hoitoonohjaus (square boxes, flat slanted-edge buttons, window dialogs, a status box) in water blue. `tests/test_page_layout.py` loads it at seven sizes from a 360-pixel phone to 1920×1080 and checks that nothing scrolls sideways, overlaps, is cut off or opens outside the picture (skipped without Playwright and Chrome).
 
 ## What makes it hard
 
@@ -41,6 +43,7 @@ src/plumberbench/
   generate.py   seeded house generator, four difficulty levels
   observe.py    the text an agent gets back, and FACTS: what the current view shows
   scene.py      the same view as shapes (no GL), built from state
+  layout.py     where the pipes run under each sink; the clearance check
   render.py     MuJoCo (headless EGL) draws the scene; Pillow adds tags and the status stamp
   server.py     FastMCP server: 12 tools, image + text per response, action log
   judge.py      the score, a hidden whole-house functional test, replay
@@ -53,8 +56,10 @@ src/plumberbench/
 harbor/tasks/          80 generated tasks: levels 1-4 x seeds 0-9 x {facts, vision}
 harbor/smoke-vision/   harness check: do MCP images reach the model, and stay fresh?
 pb_agents/             stop-early and close-the-main baseline agents for Harbor
-tests/                 rules, judge, rendering, live server, generated tasks, front-end consistency
+tests/                 rules, judge, rendering, layouts, live server, generated tasks, front-end consistency, page layout
 ```
+
+**The house.** The kitchen has a steel sink in a dark worktop over a wooden cupboard. The bathroom has a white porcelain basin in a white vanity with a white cupboard, a short basin mixer, a chrome trap and light grey tiles. Under each sink the pipe layout differs from house to house: the trap bends either way and sits higher or lower, and the supplies come out one on each side (either way round) or both on one side, at different heights. `layout.py` holds that geometry. The renderer draws from it, and a clearance check tests every pair of parts from different lines, every lever position and the cupboard walls, with at least 12 mm to spare. Layouts are drawn until one passes, from a random stream of their own, so a seed's faults never change. `tests/test_layout.py` checks 800 layouts, that every arrangement occurs, that the check can fail, and that the scene draws the checked points.
 
 **The world.** Two networks. Supply is pressurized: water reaches a tap if every valve on the path from the main is open (half open gives weak flow). The drain is gravity: a basin empties at 2 units per tick unless something on the path to the stack is clogged. Time moves in ticks; leaks drip per tick; overflow and spills are damage. The image is a pure function of the state, so the picture can never disagree with the rules.
 

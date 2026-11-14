@@ -1,0 +1,68 @@
+# Fix the plumbing
+
+You are a plumber called out to a small house. The tenant has reported a problem. Find out what is actually wrong, fix it, and leave the house in full working order, within the time budget and without flooding anything.
+
+You work only through the tools of the `plumberbench` MCP server. Every tool call is one action in the house; there is nothing to inspect in your own container. Start with `briefing`, and call `finish` once when you are done.
+
+## The house
+
+**Kitchen and bathroom** each have two views:
+
+- `counter`: the basin, with level marks numbered 1 to 8 on its back wall; a mixer tap with the hot handle (red) on the left and the cold handle (blue) on the right; and the aerator (A) on the end of the spout.
+- `under_sink`: the hot supply (red, left) and the cold supply (blue, right). Each comes out of the wall through a **wall-side joint**, then a **stop valve**, then a **tap-side joint**, then a hose up to the tap. In the middle is the drain: the tailpiece from the basin, a slip joint, the **trap** (T, the U-bend), a second slip joint, and the arm into the wall.
+
+**Utility room** has one view, `wall`:
+
+- the **main valve**, low on the left, where the supply comes up from the floor past the meter;
+- the **cold manifold** with three branch valves. One of them is a spare whose outlet is capped; it is normally closed;
+- the **heater valve**, on the pipe that feeds the water heater. Hot water for every tap comes through it;
+- the **hot manifold** with two branch valves;
+- the **cleanout plug** (C), on the drain branch that both basins share, next to the big drain stack.
+
+Branch valves are not labelled with the fixture they feed.
+
+## How water behaves
+
+The rules are simple and exact.
+
+- Time moves in ticks. Most actions take time; the status line shows time used and the time budget. When the budget runs out, the job ends as it stands.
+- A supply pipe is under pressure when every valve between the main and that point is open. A half-open valve on the way gives weak flow; a closed valve gives none, and takes the pressure off everything after it.
+- A leaking supply joint drips 1 unit per tick whenever it is under pressure, whether or not a tap is running. A supply joint that is undone while under pressure sprays 3 units per tick.
+- A drain carries water only while there is water in its basin; a clear drain empties 2 units per tick. A leaking drain joint drips only while water passes it or stands above it.
+- A clog stops water at that point; nothing below a clog gets wet. Both basins drain through the shared branch in the utility room.
+- A blocked aerator makes both hot and cold weak at that tap.
+- A basin holds 8 units; anything more overflows. Water that reaches the floor is damage.
+- The bucket catches up to 10 units from the part it stands under.
+- One fault can hide another: a closed valve hides a leak beyond it, and a clog hides a leak below it. Test again after each fix. There may be more than one fault.
+- The tenant's account of the problem may be wrong.
+
+## Reading what you see
+
+- Every response includes a picture of the view, with every part tagged: V valve, J joint, T trap, C cleanout plug, A aerator. Tag numbers are random and say nothing about the part.
+- A valve's black lever points **along the pipe when open**, **across the pipe when closed**, and at 45 degrees when half open.
+- After `run_tap`, the picture shows the water as it ran on the last tick: a full flow is a solid column, a weak flow only a broken trickle of drops, no flow nothing at all. Running `both` shows the two sides together, so run them one at a time to compare.
+- Blue beads under a joint mean it is dripping right now. A blue pool on the floor is water; a brown patch is an old, dry stain.
+- The status line is printed at the top of both the picture and the text. If the step number in the picture differs from the one in the text, the picture is stale.
+- Sounds (dripping, spraying) are reported in the text.
+- Each response also ends with a line starting `FACTS`: a JSON list of what the view shows,
+  following the same visibility rules as the picture (you cannot see inside a pipe that is closed).
+
+## Parts and repairs
+
+- A leaking joint is either **loose** (tighten it) or has a **worn washer** (undo it with `open_joint`, then `close_joint` refits it with a new washer). `inspect` tells you whether a nut is loose. Forcing a nut that is already tight crushes its washer.
+- Undo a supply joint only with the pressure off. The stop valve takes the pressure off the tap-side joint. The wall-side joint is upstream of the stop valve, so only a valve in the utility room takes the pressure off it.
+- A clogged trap: put the bucket under it, remove it with `open_joint`, `repair` it with `clear`, then refit it with `close_joint`. A clog in the shared branch is cleared the same way at the cleanout plug.
+- Washers are limited; the status line shows how many you have left.
+- Actions that are impossible (a tag not in this room, a valve already in that position) are refused, cost no time and change nothing.
+
+## Scoring
+
+Your score is between 0 and 1. When you call `finish`, or time runs out, the house is tested: every tap must run full on hot and cold, every basin must drain, nothing may drip, every part must be refitted, and no valve may be left more closed than you found it (unless that valve was itself a fault).
+
+    score = repair x (0.70 + 0.15 x dryness + 0.10 x time left + 0.05 x diagnosis)
+
+- **repair**: the share of faults fixed, minus 0.25 for each thing left worse than you found it.
+- **dryness**: 1 - damage / 20 (not below 0). **time left**: 1 - time used / time budget.
+- **diagnosis**: 1 if the list you give to `finish` is exactly the set of fault types present, from: `trap_clog`, `branch_clog`, `supply_leak`, `drain_leak`, `aerator_clog`, `valve_not_open`.
+
+Fixing nothing scores 0, whatever else you do.

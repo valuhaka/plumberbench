@@ -1,7 +1,8 @@
 """Render the current view to a PNG: MuJoCo for the 3D scene, Pillow for tags.
 
-Headless on CPU with MUJOCO_GL=egl (set below if unset). One GL renderer is
-kept per view; between frames only the shapes' positions, sizes and colours
+OpenGL backend: on Linux, EGL (headless, works on CPU through Mesa) unless
+MUJOCO_GL is already set. On macOS MuJoCo picks CGL by itself and on Windows
+WGL, so nothing is set there. One GL renderer is kept per view; between frames only the shapes' positions, sizes and colours
 change, so a frame costs one scene compile and one draw.
 
 The status line is stamped into the top of every image, so an agent can tell
@@ -12,8 +13,16 @@ from __future__ import annotations
 import io
 import math
 import os
+import platform
 
-os.environ.setdefault("MUJOCO_GL", "egl")
+
+def default_gl(system: str) -> str | None:
+    """The MUJOCO_GL value to use when none is set, or None to let MuJoCo choose."""
+    return "egl" if system == "Linux" else None
+
+
+if "MUJOCO_GL" not in os.environ and default_gl(platform.system()):
+    os.environ["MUJOCO_GL"] = default_gl(platform.system())
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
@@ -96,8 +105,11 @@ def _project(model, data, point) -> tuple[float, float, float]:
 
 
 def _font(size: int):
-    for path in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                 "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"):
+    for path in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",   # Debian, Ubuntu
+                 "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",            # Fedora
+                 "/System/Library/Fonts/Supplemental/Arial Bold.ttf",      # macOS
+                 "/Library/Fonts/Arial Bold.ttf",
+                 "C:/Windows/Fonts/arialbd.ttf"):
         if os.path.exists(path):
             return ImageFont.truetype(path, size)
     return ImageFont.load_default(size=size)

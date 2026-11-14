@@ -88,6 +88,28 @@ def test_weak_and_full_flow_look_different():
     assert "stream" not in visible(build(s)), "the stream shows only on the tick the tap ran"
 
 
+def test_gl_backend_choice_is_valid_on_every_platform():
+    """MuJoCo rejects egl outside Linux, so only Linux gets a default."""
+    import importlib.util
+    import pathlib
+    import re
+
+    from plumberbench.render import default_gl
+
+    src = pathlib.Path(importlib.util.find_spec("mujoco").origin).parent
+    gl = (src / "rendering" / "classic" / "gl_context.py").read_text()
+    valid = {
+        "Linux": ("glx", "egl", "osmesa"),
+        "Darwin": ("cgl",),
+        "Windows": ("wgl",),
+    }
+    for system, extra in valid.items():
+        choice = default_gl(system)
+        assert choice is None or choice in extra, system
+        if choice:
+            assert re.search(rf"'{choice}'", gl), "MuJoCo still lists this backend"
+
+
 # ----------------------------------------------------------- real pixels
 
 @pytest.fixture(scope="module")

@@ -155,6 +155,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; }
 .panel { background: var(--surface); border: 1px solid var(--border); padding: 1.1rem 1.25rem; box-shadow: var(--shadow-raised); }
 .panel + .panel { margin-top: 1rem; }
 .panel h2 { font-size: 1.05rem; color: var(--accent-dark); margin-bottom: 0.75rem; }
+.panel h2.sub { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 
 /* Buttons: straight left edge, slanted right edge, flat fills (two clipped layers: border, fill) */
 button { --btn-bg: transparent; --btn-border: var(--btn-bg); --btn-fg: inherit; --btn-line: 1px;
@@ -220,6 +221,8 @@ select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1p
 #stage { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #0b0d10; border: 1px solid var(--border); box-shadow: var(--shadow-raised); }
 #view { width: 100%; height: 100%; display: block; }
 .hot { position: absolute; padding: 0; outline: 2px solid transparent; cursor: pointer; }
+/* After inspect the picture is a close-up; this returns to the whole view (look, which takes no time). */
+.back { position: absolute; z-index: 4; right: 10px; bottom: 10px; font-weight: 600; }
 .hot:hover, .hot:focus-visible { outline-color: var(--accent); background: rgb(31 111 178 / 0.12); }
 .menu { position: absolute; z-index: 5; width: min(260px, calc(100% - 16px)); background: var(--surface); border: 1px solid var(--border);
   border-top: 3px solid var(--accent); box-shadow: var(--shadow-window); }
@@ -300,6 +303,7 @@ label.check span { color: var(--muted); font-size: 0.9rem; }
 <main class="layout">
   <section class="view-col">
     <div id="stage"><img id="view" alt="The current view"><div id="hots"></div>
+      <button class="secondary back" id="back" hidden>Back to the whole view</button>
       <div class="menu" id="menu" role="menu" hidden></div></div>
     <div class="console">
       <div class="console-head"><button class="link" id="histbtn">Show history</button></div>
@@ -319,11 +323,10 @@ label.check span { color: var(--muted); font-size: 0.9rem; }
   </section>
   <aside class="controls">
     <section class="panel result" id="result" hidden></section>
-    <section class="panel" id="movepanel"><h2>Move</h2>
+    <section class="panel" id="controlpanel"><h2>Move</h2>
       <div class="segments" id="rooms"></div>
       <div class="segments" id="views"></div>
-    </section>
-    <section class="panel" id="waterpanel"><h2>Water and time</h2>
+      <h2 class="sub">Water and time</h2>
       <div class="row"><div class="choice" id="side"></div>
         <select id="tapticks" aria-label="How long to run the tap"></select>
         <button class="secondary" id="runtap">Run tap</button></div>
@@ -352,6 +355,7 @@ label.check span { color: var(--muted); font-size: 0.9rem; }
     <h3>Using this page</h3>
     <ul class="help-ui">
       <li>Click a tag on the picture (V, J, T, C or A) to see what you can do with that part. You can only work on parts in the current view.</li>
+      <li>Inspect shows a close-up of the part. Back to the whole view, on the picture, returns to the full view and takes no time.</li>
       <li>Move between rooms and views with the buttons on the right. Use the tap and wait controls to test the plumbing.</li>
       <li>Every button types a command into the box under the picture; you can also type commands there yourself. Up and down arrows go through earlier commands.</li>
       <li>When everything works, use Report job finished at the top.</li>
@@ -364,7 +368,7 @@ label.check span { color: var(--muted); font-size: 0.9rem; }
 const S = __STATIC__;
 const $ = id => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
-let room = "", view = "", over = false, side = "cold", result = null;
+let room = "", view = "", over = false, side = "cold", result = null, zoomed = false;
 const typed = []; let tpos = 0; const transcript = [];
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const units = n => n === 0 ? "No time" : n + (n === 1 ? " time unit" : " time units");
@@ -404,8 +408,10 @@ function segment(label, sub, line, here) {
 function drawMove() {
   $("rooms").replaceChildren(...S.rooms.map(([k, label]) =>
     segment(label, k === room ? "You are here" : units(S.cost.go), "go " + k, k === room)));
-  $("views").replaceChildren(...(S.views[room] || []).map(([k, label]) =>
-    segment(label, k === view ? "You are looking here" : units(S.cost.look), "look " + k, k === view)));
+  $("views").replaceChildren(...(S.views[room] || []).map(([k, label]) => k === view && zoomed
+    ? segment(label, "Back to the whole view", "look " + k, false)
+    : segment(label, k === view ? "You are looking here" : units(S.cost.look), "look " + k, k === view)));
+  $("back").hidden = !zoomed || over;
   const tap = room !== "utility";
   $("runtap").disabled = over || !tap;
   $("tapnote").textContent = tap ? "" : "There is no tap in the utility room.";
@@ -420,6 +426,7 @@ $("side").replaceChildren(...["cold", "hot", "both"].map(s => {
 for (let i = 1; i <= 5; i++) $("tapticks").add(new Option("For " + i + (i > 1 ? " ticks" : " tick"), i));
 for (let i = 1; i <= 10; i++) $("waitticks").add(new Option(i + (i > 1 ? " ticks" : " tick"), i));
 $("runtap").onclick = () => send(`run_tap ${side} ${$("tapticks").value}`);
+$("back").onclick = () => send("look " + view);
 $("wait").onclick = () => send(`wait ${$("waitticks").value}`);
 
 /* ---- the picture and its tag menus ---- */
@@ -469,10 +476,12 @@ $("histbtn").onclick = () => {
   if (!t.hidden) t.scrollTop = t.scrollHeight;
 };
 
-function apply(p, line) {
+const isInspect = line => /^\s*inspect\s/i.test(line || "");
+function apply(p, line, pictureLine = line) {
   if (line !== undefined) record(line, p.text);
   $("latest").textContent = p.text;
   setComplaint(p.text);
+  if (p.image) zoomed = isInspect(pictureLine);  // a successful inspect shows a close-up
   parseStatus(p.text);
   if (p.image) drawPicture(p);
   if (p.result && !result) showResult(p.result);
@@ -550,7 +559,7 @@ function showResult(r) {
     el("p", {className: "verdict", textContent: verdict}),
     el("table", {className: "facts"}, el("tbody", {}, ...rows)),
     el("details", {className: "raw"}, el("summary", {textContent: "Full JSON"}), el("pre", {textContent: JSON.stringify(r, null, 2)})));
-  $("result").hidden = false; $("movepanel").hidden = true; $("waterpanel").hidden = true;
+  $("result").hidden = false; $("controlpanel").hidden = true;
   $("joblabel").textContent = "Job over";
   $("finish").textContent = "See the result";
   drawMove();
@@ -593,7 +602,8 @@ $("help").onclick = async () => {
 /* ---- start: replay what has happened so far ---- */
 fetch("/history").then(r => r.json()).then(h => {
   h.log.forEach(([line, text]) => { record(line, text); setComplaint(text); });
-  apply(h.current);
+  const shown = [...h.log].reverse().find(([, text]) => text === h.current.text);
+  apply(h.current, undefined, shown && shown[0]);
 });
 </script></body></html>
 """.replace("__STATIC__", json.dumps(STATIC))

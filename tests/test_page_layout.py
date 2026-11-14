@@ -1,6 +1,7 @@
 """The browser page at phone, tablet, laptop and desktop sizes.
 
-Needs Playwright and a Chromium or Chrome; skipped otherwise. Set
+Needs Playwright (in the dev extras) and a browser: Playwright's own Chromium,
+or an installed Google Chrome or Edge. Skipped otherwise, with the reason. Set
 PB_LAYOUT_SHOTS=<dir> to also save a screenshot per size.
 """
 import os
@@ -13,11 +14,15 @@ from pathlib import Path
 
 import pytest
 
-playwright = pytest.importorskip("playwright.sync_api")
+try:
+    import playwright.sync_api as playwright
+except ImportError:
+    pytest.skip("screen-size test skipped: Playwright is not installed "
+                "(it is in the dev extras: uv run --extra dev ...)", allow_module_level=True)
 from live import SRC, free_port  # noqa: E402
 
 SIZES = [(360, 740), (414, 896), (768, 1024), (1024, 768), (1280, 800), (1440, 900), (1920, 1080)]
-BLOCKS = [".topbar", ".job", "#stage", ".console", ".infobox", "#movepanel", "#waterpanel"]
+BLOCKS = [".topbar", ".job", "#stage", ".console", ".infobox", "#controlpanel"]
 
 
 @pytest.fixture(scope="module")
@@ -39,16 +44,27 @@ def page_url(tmp_path_factory):
     proc.kill()
 
 
+def _launch(p):
+    """Playwright's own Chromium, else an installed Chrome or Edge, else a chrome on PATH."""
+    attempts = [dict(), dict(channel="chrome"), dict(channel="msedge")]
+    exe = next((shutil.which(n) for n in ("google-chrome", "chromium", "chromium-browser") if shutil.which(n)), None)
+    if exe:
+        attempts.append(dict(executable_path=exe, args=["--no-sandbox"]))
+    for kwargs in attempts:
+        try:
+            return p.chromium.launch(**kwargs)
+        except Exception:
+            continue
+    return None
+
+
 @pytest.fixture(scope="module")
 def browser():
     with playwright.sync_playwright() as p:
-        try:
-            b = p.chromium.launch()
-        except Exception:
-            exe = next((shutil.which(n) for n in ("google-chrome", "chromium", "chromium-browser") if shutil.which(n)), None)
-            if not exe:
-                pytest.skip("no Chromium or Chrome for Playwright")
-            b = p.chromium.launch(executable_path=exe, args=["--no-sandbox"])
+        b = _launch(p)
+        if b is None:
+            pytest.skip("screen-size test skipped: no browser found. Install Google Chrome, "
+                        "or run: uv run --extra dev playwright install chromium")
         yield b
         b.close()
 
@@ -80,8 +96,8 @@ def test_page_fits_every_screen(browser, page_url, width, height):
     for s, r in rects.items():
         assert r[0] >= -0.5 and r[2] <= width + 0.5, f"{s} sticks out of the window: {r}"
     # Main blocks never sit on top of each other.
-    for a in ("#stage", ".console", ".infobox", "#movepanel", "#waterpanel"):
-        for b in ("#stage", ".console", ".infobox", "#movepanel", "#waterpanel"):
+    for a in ("#stage", ".console", ".infobox", "#controlpanel"):
+        for b in ("#stage", ".console", ".infobox", "#controlpanel"):
             if a < b:
                 assert not overlaps(rects[a], rects[b]), f"{a} overlaps {b}"
     # No button label is cut off.
@@ -113,4 +129,20 @@ def test_a_click_anywhere_in_the_output_reaches_the_command_line(browser, page_u
     page.wait_for_selector(".hot", state="attached")
     page.click("#latest")
     assert page.evaluate("document.activeElement.id") == "cmd"
+    page.close()
+
+
+def test_a_close_up_has_a_way_back(browser, page_url):
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(page_url)
+    page.wait_for_selector(".hot", state="attached")
+    assert page.is_hidden("#back")
+    page.locator(".hot").first.click()
+    page.locator("#menu .item", has_text="Inspect").click()
+    page.wait_for_selector("#back", state="visible")
+    before = page.eval_on_selector("#st-time", "e => e.textContent")
+    page.click("#back")
+    page.wait_for_selector("#back", state="hidden")
+    assert "You are looking at" in page.inner_text("#latest")
+    assert page.eval_on_selector("#st-time", "e => e.textContent") == before, "going back takes no time"
     page.close()

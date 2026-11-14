@@ -16,8 +16,10 @@ Rules that keep it honest (tests/test_views.py enforces them):
     part's kind (its tag letter), never on its state.
 
 Styling follows the conventions of valuhaka/hoitoonohjaus (style.md): square
-boxes, buttons with a slanted right edge, depth from soft light, dialogs as
-windows with a title bar, and a fixed status bar. The palette is water blue.
+boxes, buttons with a slanted right edge (flat, no light effect), dialogs as
+windows with a title bar, and the status in a box like its status bar, here
+stacked top to bottom. The palette is water blue. The layout has two columns
+on wide screens and one on narrow ones (tests/test_page_layout.py).
 
 This server is for local play only and is never part of a Harbor task.
 """
@@ -42,16 +44,13 @@ PAYLOAD_KEYS = ("text", "image", "hotspots", "result")
 
 # Sentences the page shows about the task. Each is quoted word for word from the
 # agent's instruction (the test checks), so the page tells people nothing more.
-GOAL = ("Find out what is actually wrong, fix it, and leave the house in full working order, "
-        "within the time budget and without flooding anything.")
 MORE_THAN_ONE = "There may be more than one fault."
-TENANT_WRONG = "The tenant's account of the problem may be wrong."
 HOUSE_TEST = ("the house is tested: every tap must run full on hot and cold, every basin must drain, "
               "nothing may drip, every part must be refitted, and no valve may be left more closed "
               "than you found it (unless that valve was itself a fault).")
 FORMULA = "score = repair x (0.70 + 0.15 x dryness + 0.10 x time left + 0.05 x diagnosis)"
 NOTHING_FIXED = "Fixing nothing scores 0, whatever else you do."
-FROM_INSTRUCTION = (GOAL, MORE_THAN_ONE, TENANT_WRONG, HOUSE_TEST, FORMULA, NOTHING_FIXED)
+FROM_INSTRUCTION = (MORE_THAN_ONE, HOUSE_TEST, FORMULA, NOTHING_FIXED)
 
 KINDS = {"V": "valve", "J": "joint", "T": "trap", "C": "cleanout plug", "A": "aerator"}
 
@@ -87,8 +86,7 @@ STATIC = {
     "menus": MENUS, "kinds": KINDS, "rooms": ROOMS, "views": VIEWS,
     "faults": [[d, d.replace("_", " ").capitalize(), DIAGNOSIS_TEXT[d]] for d in DIAGNOSES],
     "cost": {"go": COST["go"], "look": COST["look"]},
-    "text": {"goal": GOAL, "more": MORE_THAN_ONE, "wrong": TENANT_WRONG, "test": HOUSE_TEST,
-             "formula": FORMULA, "nothing": NOTHING_FIXED},
+    "text": {"more": MORE_THAN_ONE, "test": HOUSE_TEST, "formula": FORMULA, "nothing": NOTHING_FIXED},
 }
 
 
@@ -109,120 +107,142 @@ PAGE = r"""<!DOCTYPE html>
 :root {
   --accent-light: #8fc1e3; --accent: #1f6fb2; --accent-dark: #0e4a7e; --tint: #e9f2f9;
   --bg: #f4f7f9; --surface: #ffffff; --text: #17232d; --muted: #51606b; --border: #d2dee6;
-  --danger: #b42318; --danger-bg: #fdecea; --ok: #18794e;
+  --danger: #b42318; --ok: #18794e;
   --font: 'Cabin', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
-  --slant: 0.55rem; --topbar-h: 3.5rem; --statusbar-h: 2.4rem;
+  --slant: 0.55rem; --gutter: 1.5rem; --topbar-h: 3.6rem;
   --shadow-raised: 0 0 0 1px rgb(8 30 50 / 0.03), 0 1px 2px rgb(8 30 50 / 0.06), 0 12px 28px -16px rgb(8 30 50 / 0.3);
   --shadow-window: 0 0 0 1px rgb(8 30 50 / 0.08), 0 28px 64px -24px rgb(8 30 50 / 0.5);
   --shadow-inset: inset 0 1px 2px rgb(8 30 50 / 0.12);
-  --highlight: inset 0 1px 0 rgb(255 255 255 / 0.3);
   --chrome-top: #fbfdfe; --chrome-bottom: #e5eef4;
   font-family: var(--font); color: var(--text); background: var(--bg);
 }
 * { box-sizing: border-box; border-radius: 0; }
-body { margin: 0; padding-bottom: calc(var(--statusbar-h) + 1rem); }
+body { margin: 0; }
 h1, h2, h3 { margin: 0; font-weight: 600; }
 [hidden] { display: none !important; }
 
 /* Top bar: frosted, accent line below */
-.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between;
-  min-height: var(--topbar-h); padding: 0.5rem 1.5rem; border-bottom: 3px solid var(--accent);
-  background: rgb(255 255 255 / 0.8); -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
-.brand { font-size: 1.35rem; font-weight: 700; color: var(--accent-dark); letter-spacing: 0.01em; }
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  min-height: var(--topbar-h); padding: 0.5rem var(--gutter); border-bottom: 3px solid var(--accent);
+  background: rgb(255 255 255 / 0.85); -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
+.brand { font-size: 1.35rem; font-weight: 700; color: var(--accent-dark); }
 
-/* The job: always in view, right under the top bar */
-.job { position: sticky; top: var(--topbar-h); z-index: 15; display: flex; gap: 1.5rem; align-items: center;
-  padding: 1rem 1.5rem; color: #fff; background: linear-gradient(#155f9e, var(--accent-dark));
-  box-shadow: var(--highlight), var(--shadow-raised); }
-.job-text { flex: 1; min-width: 0; }
+/* The job: the complaint, and the button to report it done */
+.job { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; padding: 0.9rem var(--gutter);
+  color: #fff; background: var(--accent-dark); }
+.job-text { flex: 1 1 22rem; min-width: 0; }
+/* Pinned under the top bar where the screen has room for it; on phones it scrolls away. */
+@media (min-width: 961px) and (min-height: 700px) { .job { position: sticky; top: var(--topbar-h); z-index: 15; } }
 .job-label { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-light); }
-.complaint { font-size: 1.45rem; font-weight: 600; line-height: 1.3; margin: 0.15rem 0 0.35rem; }
-.goal { margin: 0; color: #dcebf7; font-size: 1rem; }
-.goal strong { color: #fff; font-weight: 600; }
+.complaint { font-size: clamp(1.1rem, 1rem + 0.8vw, 1.5rem); font-weight: 600; line-height: 1.3; margin: 0.15rem 0 0; }
 
-/* Layout */
-.layout { display: grid; grid-template-columns: auto minmax(300px, 1fr); gap: 1.5rem; align-items: start;
-  max-width: 1360px; padding: 1.25rem 1.5rem; }
-/* The picture shrinks with the window's height so the output under it stays in view */
-.view-col { width: min(800px, max(480px, calc((100dvh - 27rem) * 4 / 3))); }
-@media (max-width: 1100px) { .layout { grid-template-columns: minmax(0, 1fr); } .view-col { width: 100%; } }
+/* Layout: picture and output on the left; status, moves and controls on the right.
+   One column on narrow screens: status first, then the picture, then the controls. */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(270px, 360px); grid-template-rows: auto 1fr;
+  grid-template-areas: "view info" "view controls"; gap: 1.25rem 1.5rem; align-items: start;
+  max-width: 1320px; margin: 0 auto; padding: 1.25rem var(--gutter) 2rem; }
+.view-col { grid-area: view; min-width: 0; width: 100%; justify-self: center;
+  /* The picture shrinks with the window's height so the output under it stays in view. */
+  max-width: min(800px, max(440px, calc((100dvh - 23rem) * 4 / 3))); }
+.infobox { grid-area: info; }
+.controls { grid-area: controls; min-width: 0; }
+@media (max-width: 960px) {
+  :root { --gutter: 1rem; }
+  .layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "info" "view" "controls"; gap: 1rem; }
+  .view-col { max-width: 800px; }
+}
 .panel { background: var(--surface); border: 1px solid var(--border); padding: 1.1rem 1.25rem; box-shadow: var(--shadow-raised); }
 .panel + .panel { margin-top: 1rem; }
 .panel h2 { font-size: 1.05rem; color: var(--accent-dark); margin-bottom: 0.75rem; }
 
-/* Buttons: straight left edge, slanted right edge, depth from light (two clipped layers) */
+/* Buttons: straight left edge, slanted right edge, flat fills (two clipped layers: border, fill) */
 button { --btn-bg: transparent; --btn-border: var(--btn-bg); --btn-fg: inherit; --btn-line: 1px;
-  --btn-top: color-mix(in srgb, var(--btn-bg) 86%, #fff);
   --shape: polygon(0 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
   position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
   font: inherit; font-weight: 500; cursor: pointer; padding: 0.55rem calc(1.2rem + var(--slant) / 2) 0.55rem 1.2rem;
   background: none; border: 0; color: var(--btn-fg); }
 button::before, button::after { content: ''; position: absolute; z-index: -1; clip-path: var(--shape); }
-button::before { inset: 0; background: linear-gradient(var(--btn-border), color-mix(in srgb, var(--btn-border) 80%, #000)); }
-button::after { inset: var(--btn-line); background: linear-gradient(var(--btn-top), var(--btn-bg)); box-shadow: var(--highlight); }
-button:active:not(:disabled)::after { background: linear-gradient(var(--btn-bg), var(--btn-top)); box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.2); }
+button::before { inset: 0; background: var(--btn-border); }
+button::after { inset: var(--btn-line); background: var(--btn-bg); }
+button:active:not(:disabled)::after { background: color-mix(in srgb, var(--btn-bg) 90%, #000); }
 button:focus-visible { outline: none; --btn-border: var(--accent); --btn-line: 2px; }
 button:disabled { opacity: 0.5; cursor: default; }
 .primary { --btn-bg: var(--accent-dark); --btn-fg: #fff; }
 .primary:hover:not(:disabled) { --btn-bg: var(--accent); }
-.secondary { --btn-bg: #edf3f8; --btn-top: #fff; --btn-border: #c3d4e0; --btn-fg: var(--text); }
-.secondary:hover:not(:disabled) { --btn-border: var(--accent-light); }
-.on-dark { --btn-bg: #f2f7fb; --btn-top: #fff; --btn-border: #ffffff; --btn-fg: var(--accent-dark); font-weight: 700;
-  font-size: 1.05rem; padding: 0.8rem calc(1.5rem + var(--slant) / 2) 0.8rem 1.5rem; white-space: nowrap; }
-.on-dark:hover:not(:disabled) { --btn-bg: #dcebf7; }
+.secondary { --btn-bg: #f1f6fa; --btn-border: #c3d4e0; --btn-fg: var(--text); }
+.secondary:hover:not(:disabled) { --btn-border: var(--accent-light); --btn-bg: #e6f0f8; }
+.on-dark { --btn-bg: #ffffff; --btn-border: #ffffff; --btn-fg: var(--accent-dark); font-weight: 700; font-size: 1.05rem;
+  padding: 0.75rem calc(1.5rem + var(--slant) / 2) 0.75rem 1.5rem; white-space: nowrap; }
+.on-dark:hover:not(:disabled) { --btn-bg: #dcebf7; --btn-border: #dcebf7; }
 button.link { padding: 0.15rem 0.25rem; color: var(--accent-dark); font-size: 0.9rem; }
 button.link::before, button.link::after, button.plain::before, button.plain::after { content: none; }
 button.link:focus-visible { outline: 2px solid var(--accent); }
 
 /* Move: big joined segments "|Kitchen/ /Bathroom/ /Utility room/" with what each costs */
 .segments { display: flex; margin-bottom: 0.9rem; }
-.segments button { --btn-bg: #edf3f8; --btn-top: #fff; --btn-border: #c3d4e0; --btn-fg: var(--text);
-  flex: 1; flex-direction: column; gap: 0.1rem; font-size: 1.1rem; font-weight: 600;
-  padding: 0.75rem calc(0.8rem + var(--slant) / 2) 0.7rem 0.8rem; }
+.segments button { --btn-bg: #f1f6fa; --btn-border: #c3d4e0; --btn-fg: var(--text);
+  flex: 1 1 0; min-width: 0; flex-direction: column; gap: 0.1rem; font-size: 1.05rem; font-weight: 600; line-height: 1.2;
+  padding: 0.7rem calc(0.6rem + var(--slant) / 2) 0.65rem 0.6rem; text-align: center; }
 .segments button + button { --shape: polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
-  margin-left: calc(3px - var(--slant)); padding-left: calc(0.8rem + var(--slant) / 2); }
-.segments button small { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+  margin-left: calc(3px - var(--slant)); padding-left: calc(0.6rem + var(--slant) / 2); }
+.segments button small { font-size: 0.78rem; font-weight: 500; color: var(--muted); }
 .segments button.here { --btn-bg: var(--accent-dark); --btn-fg: #fff; --btn-border: var(--accent-dark); cursor: default; opacity: 1; }
 .segments button.here small { color: var(--accent-light); }
 .segments button:hover:not(:disabled):not(.here) { --btn-border: var(--accent-light); }
 .choice { display: flex; }
-.choice button { --btn-bg: #edf3f8; --btn-top: #fff; --btn-border: #c3d4e0; padding: 0.5rem calc(0.9rem + var(--slant) / 2) 0.5rem 0.9rem; }
+.choice button { --btn-bg: #f1f6fa; --btn-border: #c3d4e0; padding: 0.5rem calc(0.85rem + var(--slant) / 2) 0.5rem 0.85rem; }
 .choice button + button { --shape: polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
-  margin-left: calc(3px - var(--slant)); padding-left: calc(0.9rem + var(--slant) / 2); }
+  margin-left: calc(3px - var(--slant)); padding-left: calc(0.85rem + var(--slant) / 2); }
 .choice button.on { --btn-bg: var(--accent-dark); --btn-fg: #fff; --btn-border: var(--accent-dark); }
 .row { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.55rem; }
 .note { color: var(--muted); font-size: 0.875rem; margin: 0 0 0.9rem; }
 select { font: inherit; padding: 0.5rem 0.6rem; border: 1px solid var(--border); background: var(--surface); color: var(--text); box-shadow: var(--shadow-inset); }
 select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* Status: like a status bar, items stacked top to bottom, separated by grooves */
+.infobox { border: 1px solid var(--border); background: linear-gradient(var(--chrome-top), var(--chrome-bottom));
+  box-shadow: inset 0 1px 0 #fff, var(--shadow-raised); font-size: 0.95rem; color: var(--muted); }
+.infobox > div { display: grid; grid-template-columns: 6.5rem 1fr; align-items: center; gap: 0.6rem; padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border); box-shadow: 0 1px 0 #fff; }
+.infobox > div:last-child { border-bottom: 0; box-shadow: none; }
+.infobox b { color: var(--text); font-weight: 600; }
+.infobox .val { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.meter { flex: 1; max-width: 140px; height: 8px; background: #dfe8ee; box-shadow: var(--shadow-inset); }
+.meter > span { height: 100%; width: 0; background: var(--accent); }
+.meter.damage > span { background: var(--danger); }
+@media (max-width: 960px) {
+  .infobox { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+  .infobox > div:last-child { border-bottom: 1px solid var(--border); }
+}
+
 /* The picture, with clickable tag labels */
 #stage { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #0b0d10; border: 1px solid var(--border); box-shadow: var(--shadow-raised); }
 #view { width: 100%; height: 100%; display: block; }
 .hot { position: absolute; padding: 0; outline: 2px solid transparent; cursor: pointer; }
-.hot::before, .hot::after { content: none; }
 .hot:hover, .hot:focus-visible { outline-color: var(--accent); background: rgb(31 111 178 / 0.12); }
-.menu { position: absolute; z-index: 5; min-width: 250px; background: var(--surface); border: 1px solid var(--border);
+.menu { position: absolute; z-index: 5; width: min(260px, calc(100% - 16px)); background: var(--surface); border: 1px solid var(--border);
   border-top: 3px solid var(--accent); box-shadow: var(--shadow-window); }
 .menu .titlebar { padding: 0.45rem 0.8rem; }
 .menu .item { display: flex; justify-content: space-between; gap: 1rem; width: 100%; padding: 0.55rem 0.8rem; text-align: left;
   border-top: 1px solid var(--border); }
-.menu .item::before, .menu .item::after { content: none; }
 .menu .item:hover, .menu .item:focus-visible { background: var(--tint); outline: none; }
 .menu .item span:last-child { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
 
-/* Output: plain monospace output, the command line at its foot, history in the corner */
+/* Output: plain monospace output, the command line at its foot, history in the corner.
+   A click anywhere in it puts the cursor on the command line. */
 .console { margin-top: 1rem; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-raised);
-  font: 13.5px/1.55 var(--mono); }
+  font: 13.5px/1.55 var(--mono); cursor: text; }
+.console:focus-within { border-color: var(--accent-light); }
 .console-head { display: flex; justify-content: flex-end; padding: 0.2rem 0.4rem 0; }
 #transcript { max-height: 320px; overflow: auto; padding: 0 1rem; border-bottom: 1px dashed var(--border); }
 #transcript pre, #latest { white-space: pre-wrap; word-break: break-word; margin: 0 0 0.8rem; font: inherit; }
 #transcript .cmd, .prompt span { color: var(--accent-dark); font-weight: 600; }
 #latest { padding: 0.1rem 1rem 0; margin: 0; }
 .prompt { display: flex; gap: 0.6rem; align-items: center; padding: 0.35rem 1rem 0.7rem; }
-.prompt input { flex: 1; font: inherit; border: 0; padding: 0.15rem 0; background: transparent; color: var(--text); box-shadow: none; }
+.prompt input { flex: 1; min-width: 0; font: inherit; border: 0; padding: 0.15rem 0; background: transparent; color: var(--text); box-shadow: none; }
 .prompt input:focus { outline: none; }
-.prompt:focus-within { background: var(--tint); }
+@media (max-width: 600px) { .console { font-size: 12px; } #latest, #transcript, .prompt { padding-left: 0.6rem; padding-right: 0.6rem; } }
 
 /* Result: the score large, every other fact in a table */
 .result .big { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.25rem; }
@@ -230,8 +250,8 @@ select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1p
 .result .of { color: var(--muted); font-size: 1rem; }
 .result .verdict { margin: 0 0 1rem; font-weight: 600; }
 table.facts { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
-table.facts th, table.facts td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-top: 1px solid var(--border); }
-table.facts th { width: 42%; color: var(--muted); font-weight: 500; }
+table.facts th, table.facts td { text-align: left; vertical-align: top; padding: 0.45rem 0.5rem; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+table.facts th { width: 45%; color: var(--muted); font-weight: 500; }
 table.facts tr.group th { color: var(--accent-dark); font-weight: 600; padding-top: 0.9rem; }
 .pass { color: var(--ok); font-weight: 600; } .fail { color: var(--danger); font-weight: 600; }
 details.raw { margin-top: 1rem; }
@@ -242,7 +262,7 @@ details.raw pre { max-height: 360px; overflow: auto; background: var(--bg); bord
 /* Dialogs: windows with a title bar */
 .backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 1rem;
   background: rgb(8 30 50 / 0.35); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
-.modal { width: 100%; max-width: 640px; max-height: calc(100dvh - 2rem); display: flex; flex-direction: column;
+.modal { width: 100%; max-width: 640px; max-height: calc(100dvh - 2rem); display: flex; flex-direction: column; min-width: 0;
   background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--accent); box-shadow: var(--shadow-window); }
 .modal.wide { max-width: 860px; }
 .titlebar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.55rem 0.6rem 0.55rem 1.25rem;
@@ -250,9 +270,10 @@ details.raw pre { max-height: 360px; overflow: auto; background: var(--bg); bord
 .titlebar h2 { font-size: 1rem; color: var(--accent-dark); }
 .close { font-size: 1.4rem; line-height: 1; color: var(--muted); padding: 0.2rem 0.4rem; }
 .close::before, .close::after { content: none; }
-.modal-body { padding: 1.2rem 1.5rem 1.5rem; overflow-y: auto; display: grid; grid-auto-rows: max-content; gap: 0.9rem; }
+.modal-body { padding: 1.2rem 1.5rem 1.5rem; overflow-y: auto; display: grid; grid-auto-rows: max-content; gap: 0.9rem; min-width: 0; }
 .modal-body p { margin: 0; }
-.actions { display: flex; justify-content: flex-end; gap: 0.75rem; padding-top: 0.5rem; }
+@media (max-width: 600px) { .backdrop { padding: 0.5rem; } .modal-body { padding: 1rem; } }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.75rem; padding-top: 0.5rem; }
 label.check { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.6rem 0.75rem; border: 1px solid var(--border); cursor: pointer; }
 label.check:hover { border-color: var(--accent-light); }
 label.check input { margin-top: 0.2rem; accent-color: var(--accent-dark); width: 1.05rem; height: 1.05rem; flex: none; }
@@ -260,22 +281,11 @@ label.check b { display: block; }
 label.check span { color: var(--muted); font-size: 0.9rem; }
 .faults { display: grid; gap: 0.45rem; }
 .callout { display: grid; gap: 0.55rem; padding: 0.8rem 0.95rem; background: var(--tint); border: 1px solid var(--accent-light); }
-.callout code, .rules code { font-family: var(--mono); font-size: 0.9em; }
+.callout code, .rules code { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
 .rules h1 { font-size: 1.15rem; margin: 0.4rem 0; } .rules h2 { font-size: 1rem; color: var(--accent-dark); margin: 1rem 0 0.35rem; }
 .rules ul { margin: 0.25rem 0; padding-left: 1.2rem; } .rules li { margin: 0.2rem 0; } .rules p { margin: 0.4rem 0; }
-.rules pre, pre.cmds { background: var(--bg); border: 1px solid var(--border); padding: 0.6rem 0.75rem; overflow: auto; font: 12.5px/1.5 var(--mono); }
+.rules pre, pre.cmds { background: var(--bg); border: 1px solid var(--border); padding: 0.6rem 0.75rem; overflow: auto; font: 12.5px/1.5 var(--mono); max-width: 100%; }
 .help-ui { margin: 0; padding-left: 1.2rem; } .help-ui li { margin: 0.25rem 0; }
-
-/* Status bar: fixed at the bottom, segments separated by grooves */
-.statusbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; height: var(--statusbar-h); display: flex; align-items: center;
-  font-size: 0.92rem; color: var(--muted); background: linear-gradient(var(--chrome-top), var(--chrome-bottom));
-  border-top: 1px solid var(--border); box-shadow: inset 0 1px 0 #fff; overflow: hidden; }
-.statusbar > span { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0 1rem; white-space: nowrap; height: 100%;
-  border-right: 1px solid var(--border); box-shadow: 1px 0 0 #fff; }
-.statusbar b { color: var(--text); font-weight: 600; }
-.meter { width: 110px; height: 8px; background: #dfe8ee; box-shadow: var(--shadow-inset); }
-.meter > div { height: 100%; width: 0; background: linear-gradient(var(--accent-light), var(--accent)); }
-.meter.damage > div { background: linear-gradient(#f1958d, var(--danger)); }
 </style></head><body>
 <header class="topbar"><div class="brand">PlumberBench</div><button class="secondary" id="help">Help</button></header>
 
@@ -283,7 +293,6 @@ label.check span { color: var(--muted); font-size: 0.9rem; }
   <div class="job-text">
     <div class="job-label" id="joblabel">The job</div>
     <p class="complaint" id="complaint"></p>
-    <p class="goal" id="goal"></p>
   </div>
   <button class="on-dark" id="finish">Report job finished</button>
 </section>
@@ -300,7 +309,15 @@ label.check span { color: var(--muted); font-size: 0.9rem; }
         aria-label="Command"></label>
     </div>
   </section>
-  <aside>
+  <section class="infobox" aria-label="Status">
+    <div><span>Step</span><b id="st-step">0</b></div>
+    <div><span>Time used</span><span class="val"><b id="st-time"></b><span class="meter"><span style="display:block" id="st-timebar"></span></span></span></div>
+    <div><span>Damage</span><span class="val"><b id="st-dmg"></b><span class="meter damage"><span style="display:block" id="st-dmgbar"></span></span></span></div>
+    <div><span>Washers</span><b id="st-washers"></b></div>
+    <div><span>Bucket</span><b id="st-bucket"></b></div>
+    <div><span>Where</span><b id="st-where"></b></div>
+  </section>
+  <aside class="controls">
     <section class="panel result" id="result" hidden></section>
     <section class="panel" id="movepanel"><h2>Move</h2>
       <div class="segments" id="rooms"></div>
@@ -318,14 +335,6 @@ label.check span { color: var(--muted); font-size: 0.9rem; }
   </aside>
 </main>
 
-<footer class="statusbar" id="statusbar">
-  <span>Step <b id="st-step">0</b></span>
-  <span>Time used <b id="st-time"></b><div class="meter"><div id="st-timebar"></div></div></span>
-  <span>Damage <b id="st-dmg"></b><div class="meter damage"><div id="st-dmgbar"></div></div></span>
-  <span>Washers <b id="st-washers"></b></span>
-  <span id="st-bucket"></span>
-  <span id="st-where"></span>
-</footer>
 
 <div class="backdrop" id="finishdlg" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="finishtitle">
   <div class="titlebar"><h2 id="finishtitle">Report the job finished</h2><button class="close" data-close>&times;</button></div>
@@ -361,7 +370,6 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const units = n => n === 0 ? "No time" : n + (n === 1 ? " time unit" : " time units");
 
 /* ---- the job banner ---- */
-$("goal").append(el("strong", {textContent: S.text.goal}), " " + S.text.more + " " + S.text.wrong);
 function setComplaint(text) {
   const m = /The tenant says: "(.*)"/.exec(text);
   if (m) $("complaint").textContent = "“" + m[1] + "”";
@@ -437,9 +445,14 @@ function openMenu(h) {
       b.onclick = () => send(tpl.replace("{tag}", h.tag));
       return b;
     }));
+  m.hidden = false;
+  // Next to the label, but always inside the picture.
+  const stage = $("stage").getBoundingClientRect(), scale = stage.width / 800;
   const [, y0, x1] = h.box;
-  m.style.left = Math.min(x1 / 8 + 1, 64) + "%"; m.style.top = Math.min(y0 / 6, 52) + "%";
-  m.hidden = false; m.querySelector(".item")?.focus();
+  const left = Math.max(4, Math.min(x1 * scale + 8, stage.width - m.offsetWidth - 4));
+  const top = Math.max(4, Math.min(y0 * scale, stage.height - m.offsetHeight - 4));
+  m.style.left = left + "px"; m.style.top = top + "px";
+  m.querySelector(".item")?.focus();
 }
 const closeMenu = () => { $("menu").hidden = true; };
 
@@ -474,6 +487,10 @@ async function send(line, quiet) {
   if (!quiet) apply(p, line);
   return p;
 }
+document.querySelector(".console").addEventListener("click", e => {
+  if (e.target.closest("button") || getSelection().toString()) return;  // keep buttons and text selection working
+  $("cmd").focus();
+});
 $("cmd").addEventListener("keydown", e => {
   if (e.key === "Enter") { send(e.target.value); e.target.value = ""; }
   if (e.key === "ArrowUp" && tpos > 0) { e.target.value = typed[--tpos]; e.preventDefault(); }
@@ -495,9 +512,12 @@ $("confirmfinish").onclick = () => {
 
 const LABELS = {repair: "Repair", faults_fixed: "Faults fixed", faults_total: "Faults present", left_worse: "Left worse than found",
   damage: "Damage", time_used: "Time used", time_budget: "Time budget", diagnosis_correct: "Diagnosis right",
+  diagnosis_reported: "You reported", diagnosis_expected: "Fault types present",
   finished: "Reported finished", timed_out: "Ran out of time", consistent: "Score and house test agree",
   seed: "House", level: "Level", steps: "Steps"};
-function fmt(v) {
+const faultName = key => S.faults.find(([k]) => k === key)?.[1] || key;
+function fmt(v, k) {
+  if (k === "diagnosis_reported" || k === "diagnosis_expected") return v.length ? v.map(faultName).join(", ") : "Nothing";
   if (typeof v === "boolean") return v ? "Yes" : "No";
   if (Array.isArray(v)) return v.length ? v.join(", ") : "Nothing";
   if (v && typeof v === "object") return JSON.stringify(v);
@@ -508,7 +528,7 @@ function showResult(r) {
   const rows = [];
   for (const [k, v] of Object.entries(r)) {
     if (k === "score" || k === "functional_test" || k === "faults") continue;
-    rows.push(el("tr", {}, el("th", {textContent: LABELS[k] || cap(k.replace(/_/g, " "))}), el("td", {textContent: fmt(v)})));
+    rows.push(el("tr", {}, el("th", {textContent: LABELS[k] || cap(k.replace(/_/g, " "))}), el("td", {textContent: fmt(v, k)})));
   }
   if (r.functional_test) {
     rows.push(el("tr", {className: "group"}, el("th", {colSpan: 2, textContent: "House test"})));

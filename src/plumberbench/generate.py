@@ -4,7 +4,6 @@ from __future__ import annotations
 import copy
 import random
 
-from . import layout as pipes
 from .sim import _tick
 from .world import FIXTURES, SIDES, Comp, State, supply_chain, PRESSURE
 
@@ -237,8 +236,6 @@ def generate(seed: int, level: int, faults: list[dict] | None = None) -> State:
         manifold={"cold": cold, "hot": hot},
         washers=cfg["washers"],
         basin=basin,
-        # Its own random stream: the layout varies without changing which faults a seed gets.
-        layout={fx: pipes.sample(random.Random(f"plumberbench-layout:{level}:{seed}:{fx}")) for fx in FIXTURES},
     )
     # A leak that is running now is visibly wet now: probe one tick on a copy.
     probe = copy.deepcopy(state)

@@ -8,12 +8,10 @@ dependencies = [
     "pillow>=10.1",
     "numpy",
     "fastmcp>=2.10",
-    "starlette",
-    "uvicorn",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "mcp", "playwright"]
+dev = ["pytest", "mcp"]
 
 [build-system]
 requires = ["setuptools>=68"]

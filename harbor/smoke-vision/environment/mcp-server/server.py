@@ -35,7 +35,7 @@ def picture(number: str, call: int) -> bytes:
     draw.text((20, 14), f"call {call}", fill=(90, 90, 90), font=font(22))
     draw.text((52, 80), number, fill=(15, 15, 15), font=font(80))
     buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=85, subsampling=0)  # same format as PlumberBench frames
+    img.save(buf, format="PNG")
     return buf.getvalue()
 
 
@@ -46,7 +46,7 @@ def show_number():
     shown.append(number)
     (LOG / "shown.json").write_text(json.dumps(shown))
     return [f"Call {len(shown)}: the number is in the attached picture.",
-            Image(data=picture(number, len(shown)), format="jpeg")]
+            Image(data=picture(number, len(shown)), format="png")]
 
 
 @mcp.custom_route("/health", methods=["GET"])

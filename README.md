@@ -10,19 +10,11 @@ Built for AfterQuery's *Break the Agent* challenge at Junction 2026, on Harbor w
 
 ```bash
 ./scripts/check.sh                                   # tests + difficulty ladder; no Docker, no credits
-                                                     # (the screen-size test needs Chrome; skips are listed with reasons)
-./scripts/run-web.sh 3 2                             # play house 3, level 2 in the browser
-uv run -m plumberbench.play --seed 3 --level 2       # ...or in the terminal (watch play/view.html)
-uv run -m plumberbench.agent run --provider anthropic --model MODEL --levels 1 2 --seeds 0-1
-                                                     # a model through the MCP server, no Docker (API key)
-./scripts/judge_runs.sh anthropic/MODEL              # the judged runs, through Harbor (Docker + API key)
+uv run -m plumberbench.play --seed 3 --level 2       # play a house yourself; watch it in play/view.html
+./scripts/judge_runs.sh provider/model-name          # the judged runs, through Harbor (Docker + credits)
 ```
 
-Rendering works on Linux (headless EGL, CPU is enough) and macOS (CGL).
-
-**Playing it yourself.** The browser page keeps the job in view at all times: the tenant's complaint and the goal in a banner, with the button to report the job finished. Below it are the picture with clickable tags (each opens what that kind of part allows, with its time cost), big Move buttons that say what each move costs, tap and wait controls, the output with a command line at its foot (a click anywhere in it reaches the command line) and the history in its corner, and the status stacked in a box at the top right. Help shows the page basics, the commands and the full rules. Reporting the job opens a dialog that explains each fault type. When the job ends, both the browser and the terminal show the full result straight away; the browser shows the score large with every other fact in a table. In the terminal, `help` lists the commands with their time costs and `rules` prints the agent's instruction word for word.
-
-Every button just types a command into the same command handler the terminal uses. `tests/test_views.py` runs one sequence of commands through the agent's MCP server, the terminal and the browser and requires the same text and the same picture, byte for byte, at every step, and the same result at the end. It also requires that the browser adds nothing: fixed payload fields, a static page, menus that depend only on a tag's letter, clickable areas only where a label is already drawn, and every sentence the page states about the task quoted from the agent's instruction, and every cost and fault description present in the terminal's `help`. The page's styling follows valuhaka/hoitoonohjaus (square boxes, flat slanted-edge buttons, window dialogs, a status box) in water blue. `tests/test_page_layout.py` loads it at seven sizes from a 360-pixel phone to 1920×1080 and checks that nothing scrolls sideways, overlaps, is cut off or opens outside the picture (skipped without Playwright and Chrome).
+Rendering works on Linux (headless EGL, CPU is enough) and macOS (CGL). While you play, keep `play/view.html` open in a browser: it reloads the current view every second.
 
 ## What makes it hard
 
@@ -46,40 +38,23 @@ src/plumberbench/
   generate.py   seeded house generator, four difficulty levels
   observe.py    the text an agent gets back, and FACTS: what the current view shows
   scene.py      the same view as shapes (no GL), built from state
-  layout.py     where the pipes run under each sink; the clearance check
   render.py     MuJoCo (headless EGL) draws the scene; Pillow adds tags and the status stamp
   server.py     FastMCP server: 12 tools, image + text per response, action log
   judge.py      the score, a hidden whole-house functional test, replay
   solver.py     scripted reference plumber; talks only through the tools
   baselines.py  exploit policies the judge must give nothing
   tasks.py      writes Harbor task folders
-  play.py       human play: one command handler, terminal front-end
-  web.py        browser front-end over the same handler (local only, never in a task)
+  play.py       human play in the terminal
   replay.py     turns an episode log into a one-file HTML replay
 harbor/tasks/          80 generated tasks: levels 1-4 x seeds 0-9 x {facts, vision}
 harbor/smoke-vision/   harness check: do MCP images reach the model, and stay fresh?
 pb_agents/             stop-early and close-the-main baseline agents for Harbor
-tests/                 rules, judge, rendering, layouts, live server, generated tasks, front-end consistency, page layout
+tests/                 rules, judge, rendering, live server and generated tasks
 ```
-
-**The house.** The kitchen has a steel sink in a dark worktop over a wooden cupboard. The bathroom has a white porcelain basin in a white vanity with a white cupboard, a short basin mixer, a chrome trap and light grey tiles. Under each sink the pipe layout differs from house to house: the trap bends either way and sits higher or lower, and the supplies come out one on each side (either way round) or both on one side, at different heights. `layout.py` holds that geometry. The renderer draws from it, and a clearance check tests every pair of parts from different lines, every lever position and the cupboard walls, with at least 12 mm to spare. Layouts are drawn until one passes, from a random stream of their own, so a seed's faults never change. `tests/test_layout.py` checks 800 layouts, that every arrangement occurs, that the check can fail, and that the scene draws the checked points.
 
 **The world.** Two networks. Supply is pressurized: water reaches a tap if every valve on the path from the main is open (half open gives weak flow). The drain is gravity: a basin empties at 2 units per tick unless something on the path to the stack is clogged. Time moves in ticks; leaks drip per tick; overflow and spills are damage. The image is a pure function of the state, so the picture can never disagree with the rules.
 
-**The tools.** `briefing`, `go`, `look`, `inspect`, `run_tap`, `wait`, `set_valve`, `place_bucket`, `open_joint`, `close_joint`, `repair`, `finish`. Costs are stated in each tool's description and in the instruction. Only parts in the current view can be touched; impossible actions are refused at no cost. `inspect` returns a close-up picture of the part. At most 200 actions may take no time (looking, the briefing, refused actions); after that the job ends as it stands, as when time runs out.
-
-**What comes back.** Every response has a JPEG of the view and text in labelled sections:
-
-```
-STATUS: step 14 | time 23/55 | damage 2 | kitchen/under_sink | bucket under T1 (3/10) | washers 2 | free actions 9/200
-RESULT: You turned V2 to closed.
-YOU HEAR: Dripping in this room.
-IN VIEW: J1 J2 J3 J4 J9 J10 T2 V2 V11
-PICTURE: unchanged since step 12.    (only when no new picture is sent)
-FACTS: [...]                         (facts mode only)
-```
-
-Step, time, damage and location are also stamped into the picture, so a stale frame is detectable. A picture is sent only when something in view changed (compared below the stamp); otherwise the PICTURE line says which earlier picture still holds. On reference runs about a fifth of pictures are skipped. All GL work runs on one dedicated thread, so the server can be called from any thread.
+**The tools.** `briefing`, `go`, `look`, `inspect`, `run_tap`, `wait`, `set_valve`, `place_bucket`, `open_joint`, `close_joint`, `repair`, `finish`. Costs are stated in each tool's description and in the instruction. Impossible actions are refused at no cost. Every response starts with a status line (step, time, damage, location, bucket, washers); step, time, damage and location are also stamped into the picture, so a stale frame is detectable.
 
 **Two modes.** In `facts` mode every response also ends with a FACTS list of what the view shows, under the same visibility rules as the picture. In `vision` mode the agent gets pictures and sounds only. The reference solver cannot see, so in vision mode it reads FACTS through a token-protected route; the token is only in the oracle's `solution/`, never in the agent's container.
 
@@ -101,9 +76,7 @@ repair = faults fixed / faults present - 0.25 per thing left worse
 
 Everything is multiplied by `repair`, so fixing nothing scores 0 whatever else happens. "Left worse" is a joint left undone, a trap or plug left out, a valve left more closed than it started, or a sound washer crushed by overtightening. An independent functional test (every tap run, every drain watched, every joint checked for drips) must agree with the formula; the test suite checks that on 400 random end states.
 
-Hitting the free-action limit ends the job like running out of time: the house is tested as it stands, and since no diagnosis was reported, that part scores 0. An agent that loops from the start has fixed nothing and scores 0; one that repaired the house and then dithered keeps the repair. Zeroing it instead would make this the only rule that judges the path rather than the house.
-
-In Harbor the verifier runs in its own container and **replays the logged actions from the seed** (refused ones too, so the free-action count matches). The server's own score is only cross-checked, so tampering with result files cannot raise the reward, and a missing log scores the untouched house: 0.
+In Harbor the verifier runs in its own container and **replays the logged actions from the seed**. The server's own score is only cross-checked, so tampering with result files cannot raise the reward, and a missing log scores the untouched house: 0.
 
 ## Results so far
 
@@ -123,50 +96,30 @@ The reference solver fully repairs all 400 houses, using 36-50% of the time budg
 
 Frontier agent runs: not yet done (needs the event's harness and credits).
 
-## Running in Harbor (on your machine)
-
-Needs Docker running and Harbor (`uv tool install harbor`). Every task folder passes `harbor lint` (Harbor 0.26: no findings with the default rules; with all rules, only advisory notes on unpinned base images and the agent running as root, as in Harbor's own `hello-mcp` example) and loads with Harbor's task loader.
+## Running in Harbor
 
 ```bash
-harbor lint harbor/tasks/* harbor/smoke-vision           # static check, no Docker
-harbor run -p harbor/smoke-vision -a oracle              # builds images; checks artifacts and the verifier
-harbor run -p harbor/tasks/l3-s007-facts -a oracle       # reference run: expect about 0.93
-export ANTHROPIC_API_KEY=...                             # or the key for your provider
-harbor run -p harbor/smoke-vision -a opencode -m anthropic/MODEL --ak disable_web_search=true -k 3
-./scripts/judge_runs.sh anthropic/MODEL                  # all of the above plus baselines and agent runs
+python -m plumberbench.tasks --out harbor/tasks --levels 1 2 3 4 --seeds 0-9 --mode facts vision
+harbor run -p harbor/tasks/l3-s007-facts -a oracle                    # reference run
+harbor run -p harbor/tasks/l3-s007-facts -a nop                       # do nothing
+PYTHONPATH=. harbor run -p harbor/tasks/l3-s007-facts -a pb_agents.baselines:StopEarlyAgent
+harbor run -p harbor/tasks/l3-s007-facts -a opencode -m provider/model-name -k 3
 python -m plumberbench.replay <trial artifacts>/var/plumberbench -o replay.html
 ```
 
-The first `oracle` run builds the images (Python 3.13 slim with Mesa for headless rendering), which takes a few minutes. Each task runs the simulator as a compose sidecar (`mcp-server`), connected to the agent over streamable HTTP MCP; the episode log and frames are collected as artifacts from the sidecar. Once the smoke test passes with an OpenCode version, pin it: `OPENCODE_VERSION=x.y.z ./scripts/judge_runs.sh ...` (passes `--ak version=x.y.z`).
+Each task runs the simulator as a compose sidecar (`mcp-server`, Python 3.13 slim + Mesa EGL), connected to the agent over streamable HTTP MCP. The episode log and frames are collected as artifacts from the sidecar.
 
 **Run the smoke test first, with the exact agent and model you will be judged with.** `harbor/smoke-vision` shows a new six-digit number as a picture on each of five calls and asks for the fifth. Its verifier tells the three outcomes apart: PASS, STALE (the answer matches an earlier call: OpenCode issue #51652) or BLIND (images are not reaching the model: wrong OpenCode version, or a gateway that does not declare image input).
-
-## Running a model locally (no Docker)
-
-`plumberbench.agent` starts the MCP server for each episode and drives a model through it: the same tools, descriptions, pictures and text as in Harbor, with your own API key. It is quicker to iterate with than Harbor, but its agent loop is not OpenCode's, so treat its numbers as a pilot and confirm a few tasks through Harbor.
-
-```bash
-export ANTHROPIC_API_KEY=...
-uv run -m plumberbench.agent smoke --provider anthropic --model MODEL --repeat 3     # PASS / STALE / BLIND
-uv run -m plumberbench.agent run --provider anthropic --model MODEL --levels 1 2 3 4 --seeds 0-1 --mode facts vision
-uv run -m plumberbench.agent run --provider openai --model MODEL                      # OPENAI_API_KEY
-uv run -m plumberbench.agent run --provider openai --model MODEL \
-    --base-url https://generativelanguage.googleapis.com/v1beta/openai/ --key-env GEMINI_API_KEY
-```
-
-`anthropic` uses the Messages API with pictures inside tool results and prompt caching (system prompt, tools, and a rolling breakpoint on the latest message, so earlier turns are read from cache). `openai` works with any OpenAI-compatible endpoint; tool results are text and their pictures follow in one user message, as OpenCode does. Each run writes `runs/<provider>-<model>-<time>/` with, per episode, the server log, the transcript, a replay page and a summary, plus a summary table (scores, faults, damage, time, free actions, diagnosis, why it stopped, token use). `tests/test_agent.py` drives both adapters through the real server with a fake model that replays the reference solver, and checks the score and the exact requests each provider would receive.
 
 ## Not yet verified
 
 - **No container has been built.** Docker Hub was blocked where this was written. The simulator, server, solver and verifier are tested natively (Python 3.13, Mesa EGL on Ubuntu 24.04); the `python:3.13-slim` image with the listed Mesa packages is untested.
-- **No Harbor run has happened.** The task folders pass `harbor lint` and Harbor's task loader, but no job has run end to end.
-- **The local runner has not called a real API.** It is tested against the real MCP server with a fake model; the request formats follow each provider's documented API.
+- **No Harbor run has happened.** Task folders follow Harbor's own examples (commit b06002e, 2026-11-13): `hello-mcp` for the MCP sidecar, `sidecar-artifacts` for sidecar artifacts and the separate verifier. Directory artifacts and `-k` are from Harbor's source, not from a run.
 - **No model has played it.** Whether a frontier agent shows a gap is the open question; the ladder exists so the level can be picked once real numbers are in.
-- **No human playtest yet.** Two or three people should play three to five houses each with `play --web` (no `--facts`), without reading the source.
+- **No human playtest yet.** Two or three people should play three to five houses each in vision mode, without reading the source.
 
 ## Next
 
-1. Perception quiz: single frames with questions answered from FACTS (is V3 open, half or closed? which joints drip? what is the basin level?), to measure how much of the images-only gap is perception and check the task is not saturated.
-2. Hour one at the event: build the images, run the smoke test three times, run the oracle on one task.
-3. Agent runs on levels 1-4 in both modes; pick the judged level where the reference is above 0.9 and the agent lands between 0.3 and 0.6.
-4. Stretch (tiebreaker, and Modal's challenge): fine-tune a small open-weight vision model on reference-solver trajectories and show the before and after on held-out seeds.
+1. Hour one at the event: build the images, run the smoke test three times, run the oracle on one task.
+2. Agent runs on levels 1-4 in both modes; pick the judged level where the reference is above 0.9 and the agent lands between 0.3 and 0.6.
+3. Stretch (tiebreaker, and Modal's challenge): fine-tune a small open-weight vision model on reference-solver trajectories and show the before and after on held-out seeds.

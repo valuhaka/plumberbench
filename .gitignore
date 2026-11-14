@@ -6,3 +6,4 @@ __pycache__/
 play/
 results/demo/*/
 jobs/
+harbor/tasks

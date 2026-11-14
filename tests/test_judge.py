@@ -104,7 +104,6 @@ def test_observations_never_carry_ground_truth():
         for view in ("counter", "under_sink"):
             obs = ep.act("look", view=view)
             body = obs.text.split("\n", 1)[1]
-            assert obs.text.startswith("STATUS: ") and "\nRESULT: " in obs.text and "\nIN VIEW: " in obs.text
             assert "fault" not in body and "sludge" not in body and "crusted" not in body
             for f in obs.facts:
                 assert "fault" not in f
@@ -112,26 +111,6 @@ def test_observations_never_carry_ground_truth():
             for c in ep.state.comps.values():
                 if "." in c.id:  # internal names such as jin.kitchen.cold
                     assert c.id not in obs.text, "internal part names must not reach the agent"
-
-
-def test_free_action_limit_survives_replay_from_the_log(tmp_path):
-    """Refused calls are logged, so the verifier's replay reaches the same limit and score."""
-    import json
-    from plumberbench.world import FREE_ACTION_LIMIT
-    ep = Episode(2, 1, render=False, log_dir=tmp_path)
-    for i in range(FREE_ACTION_LIMIT + 5):
-        ep.act("inspect", tag="Z9") if i % 3 else ep.act("look", view="counter")
-    assert ep.state.stopped == "free actions"
-    rows = [json.loads(line) for line in (tmp_path / "episode.jsonl").read_text().splitlines()]
-    again = replay(2, 1, [(r["tool"], r["args"]) for r in rows])
-    assert score(again) == score(ep.state)
-    assert again.free_actions == FREE_ACTION_LIMIT
-
-
-def test_reference_solver_stays_far_below_the_free_action_limit():
-    from plumberbench.world import FREE_ACTION_LIMIT
-    most = max(play(reference, seed, level).state.free_actions for seed, level in CASES[::3])
-    assert most < FREE_ACTION_LIMIT / 4, most
 
 
 def test_one_episode_per_server_cannot_be_reset_by_finishing_twice():

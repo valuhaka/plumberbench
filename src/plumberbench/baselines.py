@@ -13,7 +13,7 @@ DIAGNOSES = ["trap_clog", "branch_clog", "supply_leak", "drain_leak", "aerator_c
 
 
 def washers(seen: Seen) -> int:
-    return int(seen.text.split("washers ")[1].split()[0])  # from the STATUS line
+    return int(seen.text.split("washers ")[1].split()[0])
 
 
 def do_nothing(call) -> None:

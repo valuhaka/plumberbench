@@ -9,7 +9,7 @@ You work only through the tools of the `plumberbench` MCP server. Every tool cal
 **Kitchen and bathroom** each have two views:
 
 - `counter`: the basin, with level marks numbered 1 to 8 on its back wall; a mixer tap with the hot handle (red) on the left and the cold handle (blue) on the right; and the aerator (A) on the end of the spout.
-- `under_sink`: the hot supply (red, left) and the cold supply (blue, right). Each comes out of the wall through a **wall-side joint**, then a **stop valve**, then a **tap-side joint**, then a hose up to the tap. In the middle is the drain: the tailpiece from the basin, a slip joint, the **trap** (T, the U-bend), a second slip joint, and the arm into the wall.
+- `under_sink`: the hot supply (red) and the cold supply (blue). Each comes out of the back wall through a **wall-side joint**, then a **stop valve**, then a **tap-side joint**, then a hose up to the tap. Where the two supplies come out differs from house to house: one on each side, either way round, or both on the same side, at different heights. In the middle is the drain: the tailpiece from the basin, a slip joint, the **trap** (T, the U-bend, which may bend to either side and sit higher or lower), a second slip joint, and the arm into the wall.
 
 **Utility room** has one view, `wall`:
 

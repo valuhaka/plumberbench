@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import urllib.request
+from pathlib import Path
 
 import pytest
 from live import SRC, start_server
@@ -30,6 +31,20 @@ def test_reference_solver_over_mcp(tmp_path, facts):
     ep = Episode(11, 3, render=False)
     Solver(lambda tool, args: ep.act(tool, **args).text).run()
     assert live["score"] == ep.result()["score"] > 0.9
+
+
+def test_task_toml_collects_the_episode_log_from_the_sidecar(tmp_path):
+    """The artifacts list must be a top-level key: under a [table] header TOML files it in that
+    table, Harbor never collects the log, and every run scores the untouched house."""
+    import tomllib
+    for mode in ("facts", "vision"):
+        cfg = tomllib.loads((write_task(tmp_path / mode, level=1, seed=0, mode=mode) / "task.toml").read_text())
+        assert cfg["artifacts"] == [{"source": "/var/plumberbench", "service": "mcp-server"}]
+        assert "artifacts" not in cfg.get("metadata", {})
+        assert cfg["verifier"]["environment_mode"] == "separate"
+        assert cfg["environment"]["mcp_servers"][0]["url"] == "http://mcp-server:8000/mcp"
+    smoke = tomllib.loads((Path(__file__).resolve().parents[1] / "harbor" / "smoke-vision" / "task.toml").read_text())
+    assert {a.get("service") for a in smoke["artifacts"]} == {None, "mcp-server"}
 
 
 def test_generated_task_verifier_replays_the_log(tmp_path):

@@ -39,6 +39,10 @@ FACTS_NOTE = """- Each response also ends with a `FACTS:` section: a JSON list o
 
 TASK_TOML = """schema_version = "1.1"
 
+# Everything the judge needs lives in the simulator sidecar, out of the agent's reach.
+# This must stay above the first [table]: below one, TOML files it under that table.
+artifacts = [{{ source = "/var/plumberbench", service = "mcp-server" }}]
+
 [task]
 name = "plumberbench/{name}"
 description = "Diagnose and repair a household plumbing fault through a rendered 3D view (level {level}, seed {seed}, {mode} mode)."
@@ -49,9 +53,6 @@ keywords = ["plumberbench", "vision", "world-model", "diagnosis", "mcp"]
 difficulty = "{difficulty}"
 category = "agentic"
 tags = ["mcp", "vision", "sidecar", "separate-verifier"]
-
-# Everything the judge needs lives in the simulator sidecar, out of the agent's reach.
-artifacts = [{{ source = "/var/plumberbench", service = "mcp-server" }}]
 
 [verifier]
 timeout_sec = 180.0

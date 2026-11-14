@@ -16,6 +16,11 @@ from __future__ import annotations
 import shlex
 
 from harbor.agents.base import BaseAgent
+
+try:  # Harbor 0.26+: an agent must declare MCP support to be given the task's MCP server
+    from harbor.agents.capabilities import AgentCapabilities
+except ImportError:  # older Harbor has no capability check
+    AgentCapabilities = None
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
@@ -68,6 +73,8 @@ asyncio.run(main())
 
 class _ScriptAgent(BaseAgent):
     PLAN = ""
+    if AgentCapabilities is not None:
+        capabilities = AgentCapabilities(mcp_servers=True)
 
     def version(self) -> str:
         return "1.0.0"

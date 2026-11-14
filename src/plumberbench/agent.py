@@ -16,6 +16,7 @@ The key comes from ANTHROPIC_API_KEY or OPENAI_API_KEY, or the variable named by
         --base-url https://generativelanguage.googleapis.com/v1beta/openai/ --key-env GEMINI_API_KEY
     python -m plumberbench.agent smoke --provider anthropic --model MODEL --repeat 3
     uv run --extra agents -m plumberbench.agent run --provider openai-agents --model MODEL
+    python -m plumberbench.agent run --provider codex          # your Codex sign-in; no API key
 
 Providers:
     anthropic  Messages API. Pictures go inside tool results. Prompt caching on:
@@ -29,6 +30,8 @@ Providers:
     openai-agents  The OpenAI Agents SDK, over the Responses API: its own agent loop,
                reasoning on while calling tools, pictures inside tool results,
                traces in the OpenAI dashboard. See agents_sdk.py.
+    codex      `codex exec` against the episode's server, signed in as you are in
+               Codex (a ChatGPT plan works); --model optional. See codex_cli.py.
     scripted   No model: replays a list of tool calls (for tests and dry runs).
 
 `smoke` runs the vision smoke test (harbor/smoke-vision) against a model:
@@ -247,6 +250,11 @@ class Scripted:
 def make_provider(args) -> object:
     if args.provider == "scripted":
         raise SystemExit("The scripted provider is for tests; give it calls in code.")
+    if args.provider == "codex":
+        from .codex_cli import CodexCLI
+        return CodexCLI(args.model, args.reasoning_effort)
+    if not args.model:
+        raise SystemExit(f"--model is required for --provider {args.provider}.")
     env = args.key_env or {"anthropic": "ANTHROPIC_API_KEY"}.get(args.provider, "OPENAI_API_KEY")
     key = os.environ.get(env)
     if not key:
@@ -402,7 +410,7 @@ def table(rows: list[dict]) -> str:
 
 
 def cmd_run(args) -> int:
-    root = Path(args.out) / f"{args.provider}-{args.model.replace('/', '_')}-{time.strftime('%Y%m%d-%H%M%S')}"
+    root = Path(args.out) / f"{args.provider}-{(args.model or 'default').replace('/', '_')}-{time.strftime('%Y%m%d-%H%M%S')}"
     rows = []
     for mode in args.mode:
         for level in args.levels:
@@ -459,7 +467,7 @@ def smoke_once(provider, out: Path) -> dict:
 
 
 def cmd_smoke(args) -> int:
-    root = Path(args.out) / f"smoke-{args.provider}-{args.model.replace('/', '_')}-{time.strftime('%Y%m%d-%H%M%S')}"
+    root = Path(args.out) / f"smoke-{args.provider}-{(args.model or 'default').replace('/', '_')}-{time.strftime('%Y%m%d-%H%M%S')}"
     passed = 0
     for i in range(1, args.repeat + 1):
         r = smoke_once(make_provider(args), root / f"run{i}")
@@ -474,13 +482,13 @@ def main() -> int:
     sub = ap.add_subparsers(dest="command", required=True)
     for name in ("run", "smoke"):
         p = sub.add_parser(name)
-        p.add_argument("--provider", choices=("anthropic", "openai", "openai-agents"), required=True)
-        p.add_argument("--model", required=True)
+        p.add_argument("--provider", choices=("anthropic", "openai", "openai-agents", "codex"), required=True)
+        p.add_argument("--model", help="required, except for codex (which then uses its default model)")
         p.add_argument("--base-url", help="API base URL (for OpenAI-compatible endpoints other than OpenAI)")
         p.add_argument("--key-env", help="environment variable holding the API key")
         p.add_argument("--max-tokens", type=int, default=16000,
                        help="output tokens per model turn, thinking included (a cap: only what is used is billed)")
-        p.add_argument("--reasoning-effort", help="OpenAI providers: e.g. none, low, medium, high")
+        p.add_argument("--reasoning-effort", help="OpenAI providers and codex: e.g. none, low, medium, high")
         p.add_argument("--out", default="runs")
         if name == "run":
             p.add_argument("--levels", type=int, nargs="+", default=[1])

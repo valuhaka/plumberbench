@@ -1,4 +1,4 @@
-"""Render the current view to a PNG: MuJoCo for the 3D scene, Pillow for tags.
+"""Render the current view to a JPEG: MuJoCo for the 3D scene, Pillow for tags.
 
 OpenGL backend: on Linux, EGL (headless, works on CPU through Mesa) unless
 MUJOCO_GL is already set. On macOS MuJoCo picks CGL by itself and on Windows
@@ -6,14 +6,23 @@ WGL, so nothing is set there. One GL renderer is kept per view; between frames o
 change, so a frame costs one scene compile and one draw.
 
 The status line is stamped into the top of every image, so an agent can tell
-a fresh frame from a stale one.
+a fresh frame from a stale one. Frames are JPEG.
+
+`render` also returns hotspots: the box of every tag label drawn on the
+picture. They carry nothing that is not visible in the picture itself; the
+browser play page uses them to make the labels clickable.
 """
 from __future__ import annotations
 
+import atexit
+import hashlib
 import io
 import math
 import os
 import platform
+import queue
+import threading
+from concurrent.futures import Future
 
 
 def default_gl(system: str) -> str | None:
@@ -32,6 +41,7 @@ from .scene import Scene, build  # noqa: E402
 from .world import State  # noqa: E402
 
 WIDTH, HEIGHT = 800, 600
+STAMP_H = 31   # rows taken by the status stamp at the top of every picture
 _cache: dict[str, tuple] = {}
 
 
@@ -60,7 +70,11 @@ def to_xml(sc: Scene) -> str:
         if g.quat is not None:
             attrs.append(f'quat="{_fmt(g.quat)}"')
         rows.append(f"    <geom {' '.join(attrs)} contype=\"0\" conaffinity=\"0\"/>")
+    # The scene's size is stated, not measured: hidden shapes are parked far below
+    # the floor, and a measured extent would push the near clipping plane out to
+    # about half a metre and blank every close-up.
     return f"""<mujoco>
+  <statistic extent="3" center="0 0 0.8"/>
   <visual>
     <global offwidth="{WIDTH}" offheight="{HEIGHT}"/>
     <headlight ambient="0.38 0.38 0.38" diffuse="0.55 0.55 0.55" specular="0.1 0.1 0.1"/>
@@ -74,14 +88,16 @@ def to_xml(sc: Scene) -> str:
 </mujoco>"""
 
 
-_COPY = ("geom_pos", "geom_quat", "geom_size", "geom_rgba", "geom_rbound", "geom_aabb")
+_COPY = ("geom_pos", "geom_quat", "geom_size", "geom_rgba", "geom_rbound", "geom_aabb",
+         "cam_pos", "cam_quat", "cam_fovy")
+JPEG_QUALITY = 85
 
 
 def _renderer_for(sc: Scene, model_now: mujoco.MjModel):
     entry = _cache.get(sc.key)
     if entry is None or entry[0].ngeom != model_now.ngeom:
         if entry is not None:
-            entry[2].close()
+            entry[2].close()  # runs on the GL thread: see _GLThread
         data = mujoco.MjData(model_now)
         entry = (model_now, data, mujoco.Renderer(model_now, height=HEIGHT, width=WIDTH))
         _cache[sc.key] = entry
@@ -119,7 +135,7 @@ _OFFSETS = [(34, -30), (-34, -30), (34, 30), (-34, 30), (52, 0), (-52, 0), (0, -
             (60, -45), (-60, -45), (60, 45), (-60, 45)]
 
 
-def _labels(img: Image.Image, placed: list[tuple[str, float, float]]) -> None:
+def _labels(img: Image.Image, placed: list[tuple[str, float, float]]) -> list[dict]:
     draw = ImageDraw.Draw(img)
     font = _font(17)
     boxes: list[tuple[float, float, float, float]] = []
@@ -151,6 +167,8 @@ def _labels(img: Image.Image, placed: list[tuple[str, float, float]]) -> None:
         draw.ellipse([u - 3.5, v - 3.5, u + 3.5, v + 3.5], fill=(255, 210, 0), outline=(20, 20, 20))
         draw.rounded_rectangle(choice, radius=5, fill=(255, 250, 225), outline=(20, 20, 20), width=2)
         draw.text((choice[0] + 5, choice[1] + 2), tag, fill=(10, 10, 10), font=font)
+    return [{"tag": tag, "box": [round(b[0]), round(b[1]), round(b[2]), round(b[3])]}
+            for (tag, _, _), b in zip(sorted(placed, key=lambda t: (t[2], t[1])), boxes)]
 
 
 def _notes(img: Image.Image, model, data, sc: Scene) -> None:
@@ -163,16 +181,81 @@ def _notes(img: Image.Image, model, data, sc: Scene) -> None:
                       stroke_fill=(245, 245, 245))
 
 
-def _stamp(img: Image.Image, s: State) -> None:
+def _stamp(img: Image.Image, s: State, focus: str | None) -> None:
     draw = ImageDraw.Draw(img)
     draw.rectangle([0, 0, WIDTH, 30], fill=(20, 22, 28))
     line = (f"step {s.step} | time {s.tick}/{s.budget} | damage {s.damage} | "
-            f"{s.room} / {s.view.replace('_', ' ')}")
+            f"{s.room} / {s.view.replace('_', ' ')}" + (f" | close-up {focus}" if focus else ""))
     draw.text((10, 5), line, fill=(255, 255, 255), font=_font(17))
 
 
-def render_array(s: State) -> np.ndarray:
-    sc = build(s)
+class _GLThread:
+    """Every GL call, including freeing contexts, happens on this one thread.
+
+    A GL context belongs to one thread at a time, and servers may call from any
+    thread. On macOS it is stricter: MuJoCo's CGL backend locks a context each
+    time it is made current and unlocks it only when freed, so a renderer freed
+    from any other thread (for example by garbage collection on the main thread
+    at exit) waits forever for that lock. So renderers are created, used and
+    closed here, and `close_all` runs here at exit while this daemon thread is
+    still alive.
+    """
+
+    def __init__(self) -> None:
+        self._jobs: queue.Queue = queue.Queue()
+        self._thread: threading.Thread | None = None
+        self._start = threading.Lock()
+
+    def run(self, fn, *args):
+        if threading.current_thread() is self._thread:
+            return fn(*args)
+        with self._start:
+            if self._thread is None:
+                self._thread = threading.Thread(target=self._loop, name="plumberbench-gl", daemon=True)
+                self._thread.start()
+        done: Future = Future()
+        self._jobs.put((fn, args, done))
+        return done.result()
+
+    @property
+    def started(self) -> bool:
+        return self._thread is not None
+
+    def _loop(self) -> None:
+        while True:
+            fn, args, done = self._jobs.get()
+            try:
+                done.set_result(fn(*args))
+            except BaseException as e:  # hand every error back to the caller
+                done.set_exception(e)
+
+
+_gl = _GLThread()
+
+
+def _close_renderers() -> None:
+    for _, _, renderer in _cache.values():
+        renderer.close()
+    _cache.clear()
+
+
+def close_all() -> None:
+    """Free every GL context, on the thread that owns them."""
+    if _gl.started:
+        _gl.run(_close_renderers)
+
+
+atexit.register(close_all)
+
+
+def render_array(s: State, focus: str | None = None) -> tuple[np.ndarray, list[dict]]:
+    """Pixels of the current view (or a close-up of `focus`) and the label hotspots."""
+    pixels, hotspots, _ = _gl.run(_render_array, s, focus)
+    return pixels, hotspots
+
+
+def _render_array(s: State, focus: str | None) -> tuple[np.ndarray, list[dict], str]:
+    sc = build(s, focus)
     model_now = mujoco.MjModel.from_xml_string(to_xml(sc))
     model, data, renderer = _renderer_for(sc, model_now)
     mujoco.mj_forward(model, data)
@@ -185,13 +268,21 @@ def render_array(s: State) -> np.ndarray:
         if depth > 0 and 0 <= u < WIDTH and 30 <= v < HEIGHT:
             placed.append((tag, u, v))
     _notes(img, model, data, sc)
-    _labels(img, placed)
-    _stamp(img, s)
-    return np.asarray(img)
+    hotspots = _labels(img, placed)
+    # What the picture shows, apart from the status stamp: equal digests, equal pictures.
+    content = hashlib.sha256(np.asarray(img)[STAMP_H:].tobytes()).hexdigest()
+    _stamp(img, s, focus)
+    return np.asarray(img), hotspots, content
 
 
-def render(s: State) -> bytes:
+def encode(pixels: np.ndarray) -> bytes:
     buf = io.BytesIO()
-    Image.fromarray(render_array(s)).save(buf, format="PNG", compress_level=6)
+    Image.fromarray(pixels).save(buf, format="JPEG", quality=JPEG_QUALITY, subsampling=0)
     return buf.getvalue()
 
+
+def render(s: State, focus: str | None = None) -> tuple[bytes, list[dict], str]:
+    """JPEG of the current view (or a close-up of `focus`), the label hotspots, and a
+    digest of everything the picture shows below the status stamp."""
+    pixels, hotspots, content = _gl.run(_render_array, s, focus)
+    return encode(pixels), hotspots, content

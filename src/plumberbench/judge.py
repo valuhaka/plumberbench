@@ -8,6 +8,7 @@ Score, in [0, 1]:
     dry    = 1 - damage / DAMAGE_CAP          (floored at 0)
     quick  = 1 - time used / time budget
     named  = 1 if the reported diagnosis is exactly the set of fault types
+             (both lists are in the result, so a wrong one shows why)
 
 Everything is multiplied by `repair`, so a run that fixes nothing scores 0
 whatever else it does. "Left worse" means a joint left undone, a trap or plug
@@ -81,7 +82,9 @@ def score(s: State) -> dict:
     repair = max(0.0, sum(fixed) / len(fixed) - REGRESSION_PENALTY * len(worse))
     dry = max(0.0, 1 - s.damage / DAMAGE_CAP)
     quick = max(0.0, 1 - s.tick / s.budget)
-    named = float(sorted(s.diagnosis or []) == sorted({f["type"] for f in s.faults}))
+    reported = sorted(set(s.diagnosis or []))
+    present = sorted({f["type"] for f in s.faults})
+    named = float(reported == present)
     total = repair * (W_REPAIR + W_DRY * dry + W_QUICK * quick + W_NAMED * named)
     checks = functional_test(s)
     return {
@@ -94,8 +97,12 @@ def score(s: State) -> dict:
         "time_used": s.tick,
         "time_budget": s.budget,
         "diagnosis_correct": bool(named),
-        "finished": s.done and not s.timed_out,
+        "diagnosis_reported": reported,   # what `finish` named
+        "diagnosis_expected": present,    # the fault types actually present; must match exactly
+        "finished": s.diagnosis is not None,      # `finish` was called
         "timed_out": s.timed_out,
+        "free_actions": s.free_actions,
+        "free_action_limit_hit": s.stopped == "free actions",
         "functional_test": checks,
         "consistent": all(checks.values()) == (all(fixed) and not worse),
     }

@@ -14,6 +14,7 @@ Time moves in ticks. Each tick, in this order:
 from __future__ import annotations
 
 from .world import (
+    FREE_ACTION_LIMIT,
     BASIN_CAP,
     BUCKET_CAP,
     COST,
@@ -145,6 +146,7 @@ def advance(s: State, ticks: int, taps: dict | None = None) -> bool:
         _tick(s, taps)
     if s.tick >= s.budget:
         s.done = s.timed_out = True
+        s.stopped = "time"
         return False
     return True
 
@@ -155,8 +157,8 @@ def _here(s: State, tag: str, kinds: tuple[str, ...] | None = None) -> Comp:
     c = s.by_tag(tag)
     if c is None:
         raise ActionError(f"There is no part tagged {tag}.")
-    if c.room != s.room:
-        raise ActionError(f"{c.tag} is not in this room.")
+    if c.room != s.room or c.view != s.view:
+        raise ActionError(f"{c.tag} is not in the current view. You can only act on parts you can see.")
     if kinds and c.kind not in kinds:
         raise ActionError(f"{c.tag} is a {c.kind}; this needs a {' or '.join(kinds)}.")
     return c
@@ -355,18 +357,44 @@ ACTIONS = {
 }
 
 
+LIMIT_REACHED = (f"That was action number {FREE_ACTION_LIMIT} that took no time, "
+                 "so the job is over as it stands.")
+
+
+def _free(s: State) -> bool:
+    """Count one action that took no time. True if that used up the allowance."""
+    s.free_actions += 1
+    if s.free_actions >= FREE_ACTION_LIMIT and not s.done:
+        s.done, s.stopped = True, "free actions"
+        return True
+    return False
+
+
 def apply(s: State, tool: str, args: dict) -> str:
-    """Carry out one action and return a one-line account of it."""
-    if tool not in ACTIONS:
-        raise ActionError(f"Unknown tool {tool}.")
+    """Carry out one action and return a one-line account of it.
+
+    A refused action changes nothing except the count of actions that took no
+    time; so does a successful one that takes no time (looking, the briefing).
+    The job ends at FREE_ACTION_LIMIT of them, as it does when time runs out.
+    """
     if s.done:
         raise ActionError("The job is over.")
-    fn, names = ACTIONS[tool]
-    missing = [n for n in names if n not in args]
-    if missing:
-        raise ActionError(f"{tool} needs: {', '.join(names)}.")
-    msg = fn(s, *[args[n] for n in names])
+    before = s.tick
+    try:
+        if tool not in ACTIONS:
+            raise ActionError(f"Unknown tool {tool}.")
+        fn, names = ACTIONS[tool]
+        missing = [n for n in names if n not in args]
+        if missing:
+            raise ActionError(f"{tool} needs: {', '.join(names)}.")
+        msg = fn(s, *[args[n] for n in names])
+    except ActionError as e:
+        if _free(s):
+            raise ActionError(f"{e} {LIMIT_REACHED}") from None
+        raise
     s.step += 1
+    if s.tick == before and not s.done and _free(s):
+        msg += " " + LIMIT_REACHED
     if s.timed_out and "Time ran out" not in msg:
         msg += " Time is up."
     return msg

@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 
 from .sim import is_wet
-from .world import BUCKET_CAP, FIXTURES, FLOW_NAME, State
+from .world import BUCKET_CAP, FIXTURES, FLOW_NAME, FREE_ACTION_LIMIT, State
 
 
 def facts(s: State) -> list[dict]:
@@ -50,7 +50,7 @@ def sounds(s: State) -> list[str]:
     dripping = [c for c in s.comps.values()
                 if c.room == s.room and c.kind == "joint" and not c.open and is_wet(s, c)]
     if dripping:
-        heard.append("You hear dripping in this room.")
+        heard.append("Dripping in this room.")
     return heard
 
 
@@ -59,16 +59,31 @@ def status(s: State) -> str:
     if s.bucket_at:
         bucket = f"bucket under {s.comps[s.bucket_at].tag} ({s.bucket_fill}/{BUCKET_CAP})"
     return (f"step {s.step} | time {s.tick}/{s.budget} | damage {s.damage} | "
-            f"{s.room}/{s.view} | {bucket} | washers {s.washers}")
+            f"{s.room}/{s.view} | {bucket} | washers {s.washers} | "
+            f"free actions {s.free_actions}/{FREE_ACTION_LIMIT}")
 
 
 def text(s: State, message: str, with_facts: bool) -> str:
-    lines = [status(s), message]
+    """One response, in labelled sections:
+
+        STATUS:   step, time used/budget, damage, where you are, bucket, washers,
+                  actions so far that took no time / the limit
+        RESULT:   what the action did
+        YOU HEAR: sounds, or "nothing unusual"
+        IN VIEW:  tags of the parts in the current view
+        PICTURE:  only when no new picture is sent: nothing in view changed since that step
+        FACTS:    (facts mode only) JSON list of what the view shows
+    """
+    lines = ["STATUS: " + status(s), "RESULT: " + message]
     if s.done:
-        lines.append("The job is over. No further actions are possible.")
+        lines.append("RESULT: The job is over. No further actions are possible.")
         return "\n".join(lines)
-    lines += sounds(s)
-    lines.append("Tags in view: " + " ".join(c.tag for c in s.in_view()))
+    lines.append("YOU HEAR: " + (" ".join(sounds(s)) or "nothing unusual."))
+    lines.append("IN VIEW: " + " ".join(c.tag for c in s.in_view()))
     if with_facts:
-        lines.append("FACTS " + json.dumps(facts(s), separators=(",", ":")))
+        lines.append("FACTS: " + json.dumps(facts(s), separators=(",", ":")))
     return "\n".join(lines)
+
+
+def error(s: State, message: str) -> str:
+    return f"STATUS: {status(s)}\nERROR: {message} No time passed."

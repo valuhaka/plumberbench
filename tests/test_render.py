@@ -119,7 +119,7 @@ def render():
         render_array(generate(0, 1))
     except Exception as e:  # no EGL on this machine
         pytest.skip(f"no headless GL: {e}")
-    return render_array
+    return lambda s, focus=None: render_array(s, focus)[0]
 
 
 def digest(a):
@@ -135,9 +135,46 @@ def test_render_is_deterministic_and_reuse_is_invisible(render):
     first = digest(render(a))
     render(b)                       # same view, different house, reusing the GL context
     again = digest(render(a))
-    r._cache.clear()
+    r.close_all()
     fresh = digest(render(a))       # compiled from scratch
     assert first == again == fresh
+
+
+def test_close_up_shares_the_context_and_moves_only_the_camera(render):
+    import plumberbench.render as r
+    s = generate(3, 2)
+    s.view = "under_sink"
+    tag = s.comps["trap.kitchen"].tag
+    full = digest(render(s))
+    close = render(s, tag)
+    assert digest(close) != full
+    assert digest(render(s)) == full, "the next full view is not left with the close-up camera"
+    r.close_all()
+    assert digest(render(s, tag)) == digest(close)
+
+
+def test_rendering_from_many_threads(render):
+    """Servers call from worker threads; every frame must still come out right."""
+    from concurrent.futures import ThreadPoolExecutor
+    s = generate(4, 1)
+    want = digest(render(s))
+    with ThreadPoolExecutor(4) as pool:
+        got = list(pool.map(lambda _: digest(render(s)), range(8)))
+    assert got == [want] * 8
+
+
+def test_close_up_camera_is_nearer_and_aimed_at_the_part():
+    s = generate(3, 2)
+    s.view = "under_sink"
+    full = build(s)
+    for c in s.in_view():
+        close = build(s, c.tag)
+        dist = lambda cam: sum((a - b) ** 2 for a, b in zip(cam, full.anchors[c.tag])) ** 0.5
+        assert dist(close.camera_pos) < 0.5 * dist(full.camera_pos)
+        assert close.camera_target == full.anchors[c.tag]
+        assert len(close.shapes) == len(full.shapes) and close.key == full.key
+    with pytest.raises(ValueError):
+        build(s, s.comps["main"].tag)  # not in this view
 
 
 def test_status_stamp_changes_the_picture(render):
@@ -147,3 +184,74 @@ def test_status_stamp_changes_the_picture(render):
     after = render(s)
     assert digest(before[40:]) == digest(after[40:]), "below the stamp the view is unchanged"
     assert digest(before[:30]) != digest(after[:30]), "the stamp shows the new step"
+
+
+def test_renderers_are_closed_on_the_gl_thread(render):
+    """On macOS, closing a renderer from another thread deadlocks, so nothing else may close one."""
+    import threading
+
+    import plumberbench.render as r
+    render(generate(0, 1))
+    closed_on = []
+    for _, _, renderer in r._cache.values():
+        original = renderer.close
+        def close(original=original):
+            closed_on.append(threading.current_thread().name)
+            original()
+        renderer.close = close
+    assert closed_on == [] and r._cache
+    r.close_all()
+    assert closed_on and set(closed_on) == {"plumberbench-gl"}
+    assert not r._cache
+
+
+@pytest.mark.parametrize("from_worker", [False, True], ids=["main thread", "worker thread"])
+def test_a_process_that_rendered_exits_promptly(render, from_worker):
+    """The macOS freeze: a process that drew a frame must still be able to exit."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    code = (
+        "import threading\n"
+        "from plumberbench.generate import generate\n"
+        "from plumberbench.render import render\n"
+        "s = generate(0, 1)\n"
+        + ("t = threading.Thread(target=lambda: render(s)); t.start(); t.join()\n" if from_worker
+           else "render(s)\n")
+        + "print('rendered')\n"
+    )
+    src = Path(__file__).resolve().parents[1] / "src"
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60,
+                          env={**__import__("os").environ, "PYTHONPATH": str(src)})
+    assert done.returncode == 0 and "rendered" in done.stdout, done.stderr
+
+
+def test_a_picture_is_sent_only_when_the_view_changed(render):
+    """No new picture when nothing in view changed; the text says which picture still holds."""
+    from plumberbench.env import Episode
+    ep = Episode(0, 1, render=True)
+    first = ep.act("look", view="counter")
+    assert first.image is not None and "PICTURE:" not in first.text
+    idle = ep.act("wait", ticks=1)
+    assert idle.image is None and idle.hotspots == []
+    assert "PICTURE: unchanged since step 1." in idle.text
+    assert ep.picture_step() == 1
+    running = ep.act("run_tap", side="cold", ticks=1)          # the stream shows
+    assert running.image is not None and ep.picture_step() == 3
+    ep.act("look", view="under_sink")
+    tag = ep.state.comps["trap.kitchen"].tag
+    close = ep.act("inspect", tag=tag)
+    assert close.image is not None
+    again = ep.act("inspect", tag=tag)                           # the same close-up
+    assert again.image is None and f"unchanged since step {close.text.split()[2]}" in again.text
+    back = ep.act("look", view="under_sink")                     # whole view again: a change
+    assert back.image is not None
+
+
+def test_facts_stay_last_when_a_picture_is_skipped(render):
+    from plumberbench.env import Episode
+    ep = Episode(0, 1, facts=True, render=True)
+    ep.act("look", view="counter")
+    lines = ep.act("wait", ticks=1).text.splitlines()
+    assert lines[-1].startswith("FACTS: ") and lines[-2].startswith("PICTURE: ")

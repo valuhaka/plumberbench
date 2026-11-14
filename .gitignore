@@ -7,3 +7,5 @@ play/
 results/demo/*/
 jobs/
 harbor/tasks
+.wrangler/
+node_modules/

@@ -90,18 +90,9 @@ def test_the_instruction_matches_the_mode(tmp_path, monkeypatch):
     assert "FACTS:" in task
 
 
-def font_or_skip():
-    from PIL import ImageFont
-    for path in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"):
-        if Path(path).exists():
-            return path
-    pytest.skip("DejaVu Sans Bold is not installed, so the scripted reader cannot read the digits")
-
-
 def test_smoke_mode_tells_pass_from_stale(tmp_path):
     """The pictures reach the 'model': a reader that decodes them passes; one that keeps the first is stale."""
     import importlib.util
-    font_or_skip()
     spec = importlib.util.spec_from_file_location(
         "read_number", agent.ROOT / "harbor" / "smoke-vision" / "solution" / "read_number.py")
     reader = importlib.util.module_from_spec(spec)

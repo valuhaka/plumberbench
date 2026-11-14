@@ -1,0 +1,9 @@
+name = "plumberbench"
+main = "worker/index.js"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./site"
+binding = "ASSETS"
+# Serve paths exactly as named (main.html stays main.html); "/" is mapped to it in worker/index.js.
+html_handling = "none"

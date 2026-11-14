@@ -20,6 +20,7 @@ PAGE = """<!DOCTYPE html>
   header {{ padding: 14px 22px; background: #0e0f12; border-bottom: 1px solid #2a2d35; }}
   header h1 {{ font-size: 18px; margin: 0 0 4px; }}
   header p {{ margin: 0; color: #a9adb6; }}
+  header p.note {{ margin-top: 6px; max-width: 75ch; }}
   main {{ display: grid; grid-template-columns: minmax(0, 800px) minmax(280px, 1fr); gap: 20px; padding: 18px 22px; }}
   img {{ width: 100%; border-radius: 6px; display: block; background: #000; }}
   pre {{ white-space: pre-wrap; word-break: break-word; background: #0e0f12; padding: 12px; border-radius: 6px;
@@ -31,7 +32,7 @@ PAGE = """<!DOCTYPE html>
   .score {{ font-size: 15px; }}
   .ok {{ color: #7bd88f; }} .bad {{ color: #ff6b6b; }}
 </style></head><body>
-<header><h1>House {seed}, level {level}</h1><p class="score">{summary}</p></header>
+<header><h1>{heading}</h1><p class="score">{summary}</p>{note}</header>
 <main>
   <div><img id="frame" alt="view at this step">
     <div class="controls"><button id="prev">&larr;</button>
@@ -65,7 +66,7 @@ show(0);
 """
 
 
-def build(log_dir: Path) -> str:
+def build(log_dir: Path, heading: str | None = None, note: str | None = None) -> str:
     rows = [json.loads(line) for line in (log_dir / "episode.jsonl").read_text().splitlines() if line.strip()]
     result = json.loads((log_dir / "result.json").read_text())
     steps = []
@@ -84,8 +85,10 @@ def build(log_dir: Path) -> str:
                f"{result['faults_total']} &middot; damage {result['damage']} &middot; time "
                f"{result['time_used']}/{result['time_budget']} &middot; diagnosis "
                f"{'right' if result['diagnosis_correct'] else 'wrong'} &middot; {test}")
-    return PAGE.format(title=f"house {result['seed']} level {result['level']}", seed=result["seed"],
-                       level=result["level"], summary=summary, last=max(len(steps) - 1, 0),
+    note_html = f'<p class="note">{html.escape(note)}</p>' if note else ""
+    return PAGE.format(title=f"house {result['seed']} level {result['level']}",
+                       heading=html.escape(heading or f"House {result['seed']}, level {result['level']}"),
+                       note=note_html, summary=summary, last=max(len(steps) - 1, 0),
                        faults=html.escape(json.dumps(result.get("faults", []), indent=1)),
                        steps=json.dumps(steps).replace("</", "<\\/"))
 

@@ -5,6 +5,7 @@
   header { padding: 14px 22px; background: #0e0f12; border-bottom: 1px solid #2a2d35; }
   header h1 { font-size: 18px; margin: 0 0 4px; }
   header p { margin: 0; color: #a9adb6; }
+  header p.note { margin-top: 6px; max-width: 75ch; }
   main { display: grid; grid-template-columns: minmax(0, 800px) minmax(280px, 1fr); gap: 20px; padding: 18px 22px; }
   img { width: 100%; border-radius: 6px; display: block; background: #000; }
   pre { white-space: pre-wrap; word-break: break-word; background: #0e0f12; padding: 12px; border-radius: 6px;
@@ -16,7 +17,7 @@
   .score { font-size: 15px; }
   .ok { color: #7bd88f; } .bad { color: #ff6b6b; }
 </style></head><body>
-<header><h1>House 7, level 3</h1><p class="score">score <b>0.9309</b> &middot; faults fixed 2/2 &middot; damage 0 &middot; time 38/55 &middot; diagnosis right &middot; <span class="ok">house test passed</span></p></header>
+<header><h1>PlumberBench: the reference plumber at work</h1><p class="score">score <b>0.9309</b> &middot; faults fixed 2/2 &middot; damage 0 &middot; time 38/55 &middot; diagnosis right &middot; <span class="ok">house test passed</span></p><p class="note">A house with a hidden plumbing fault. The tenant blames the kitchen trap; the real faults are elsewhere. This is the scripted reference plumber, seeing what an agent sees: one picture per step and the text below it. Step with the arrow keys or the slider.</p></header>
 <main>
   <div><img id="frame" alt="view at this step">
     <div class="controls"><button id="prev">&larr;</button>

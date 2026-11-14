@@ -39,11 +39,13 @@ The rules are simple and exact.
 ## Reading what you see
 
 - Every response includes a picture of the view, with every part tagged: V valve, J joint, T trap, C cleanout plug, A aerator. Tag numbers are random and say nothing about the part.
+- You can only act on parts in the current view. Use `look` to change view within a room, and `go` to change room.
+- `inspect` returns a close-up picture of the part instead of the whole view. The next action shows the whole view again.
 - A valve's black lever points **along the pipe when open**, **across the pipe when closed**, and at 45 degrees when half open.
 - After `run_tap`, the picture shows the water as it ran on the last tick: a full flow is a solid column, a weak flow only a broken trickle of drops, no flow nothing at all. Running `both` shows the two sides together, so run them one at a time to compare.
 - Blue beads under a joint mean it is dripping right now. A blue pool on the floor is water; a brown patch is an old, dry stain.
-- The status line is printed at the top of both the picture and the text. If the step number in the picture differs from the one in the text, the picture is stale.
-- Sounds (dripping, spraying) are reported in the text.
+- The text of each response has labelled sections: `STATUS` (step, time used/budget, damage, where you are, the bucket, washers left), `RESULT` (what the action did), `YOU HEAR` (dripping or spraying), and `IN VIEW` (the tags in the current view). A refused action returns `STATUS` and `ERROR` only.
+- The step, time, damage and location are also printed at the top of the picture. If the step number in the picture differs from the one in the text, the picture is stale.
 {facts_note}
 ## Parts and repairs
 
@@ -51,7 +53,7 @@ The rules are simple and exact.
 - Undo a supply joint only with the pressure off. The stop valve takes the pressure off the tap-side joint. The wall-side joint is upstream of the stop valve, so only a valve in the utility room takes the pressure off it.
 - A clogged trap: put the bucket under it, remove it with `open_joint`, `repair` it with `clear`, then refit it with `close_joint`. A clog in the shared branch is cleared the same way at the cleanout plug.
 - Washers are limited; the status line shows how many you have left.
-- Actions that are impossible (a tag not in this room, a valve already in that position) are refused, cost no time and change nothing.
+- Actions that are impossible (a part not in the current view, a valve already in that position) are refused, cost no time and change nothing.
 
 ## Scoring
 

@@ -1,11 +1,19 @@
-"""Play an episode yourself in the terminal, with the same tools the agent has.
+"""Play an episode yourself, with the same tools the agent has.
 
-    python -m plumberbench.play --seed 3 --level 2
-    python -m plumberbench.play --seed 3 --level 2 --facts     # also print FACTS
+    python -m plumberbench.play --seed 3 --level 2           # in the terminal
+    python -m plumberbench.play --seed 3 --level 2 --web     # in the browser
+    python -m plumberbench.play --seed 3 --level 2 --facts   # also show FACTS
 
-The current view is written to play/current.png after every action. Open
-play/view.html in a browser once: it shows that picture and reloads it every
-second. The whole episode is logged to play/<seed>-<level>/ so it can be
+Terminal: the current view is written to play/current.jpg after every action.
+Open play/view.html in a browser once; it shows that picture and reloads it
+every second.
+
+Browser (--web): a local page with the picture, clickable tags and buttons for
+every action. It sends the same commands you would type in the terminal, through
+the same function, so both show exactly the same text and pictures
+(tests/test_views.py checks this against the MCP server as well).
+
+Either way the whole episode is logged to play/<seed>-<level>/ so it can be
 turned into a replay page.
 
 Commands are the tool names followed by their arguments:
@@ -27,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import shlex
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .env import Episode
@@ -36,12 +45,12 @@ VIEWER = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>PlumberBench: current view</title>
 <style>body{margin:0;background:#16181d;display:grid;place-items:center;height:100vh}
 img{max-width:100vw;max-height:100vh}</style></head>
-<body><img id="v" src="current.png" alt="current view">
+<body><img id="v" src="current.jpg" alt="current view">
 <script>
 setInterval(() => {
   const next = new Image();
   next.onload = () => { document.getElementById("v").src = next.src; };
-  next.src = "current.png?" + Date.now();
+  next.src = "current.jpg?" + Date.now();
 }, 1000);
 </script></body></html>
 """
@@ -52,6 +61,18 @@ ARGS = {
     "place_bucket": ["tag"], "open_joint": ["tag"], "close_joint": ["tag"],
     "repair": ["tag", "method"],
 }
+
+HELP = (__doc__.split("Commands are")[1].split("Playtesting")[0].strip("\n")
+        + "\n\nFault names: " + ", ".join(DIAGNOSES))
+
+
+@dataclass
+class Reply:
+    """What a front-end shows for one command: this text and this picture, nothing else."""
+
+    text: str
+    image: bytes | None = None
+    hotspots: list = field(default_factory=list)
 
 
 def parse(line: str) -> tuple[str, dict]:
@@ -68,33 +89,48 @@ def parse(line: str) -> tuple[str, dict]:
         raise ValueError(f"{tool} takes: {' '.join(names) or 'nothing'}")
     args = dict(zip(names, rest))
     if "ticks" in args:
-        args["ticks"] = int(args["ticks"])
+        try:
+            args["ticks"] = int(args["ticks"])
+        except ValueError:
+            raise ValueError("ticks must be a whole number.") from None
     return tool, args
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="Play PlumberBench in the terminal.")
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--level", type=int, default=1)
-    ap.add_argument("--facts", action="store_true", help="print the FACTS list (off for playtests)")
-    ap.add_argument("--no-render", action="store_true", help="text only, no images")
-    ap.add_argument("--out", default="play")
-    a = ap.parse_args()
+def handle(ep: Episode, line: str) -> Reply:
+    """Run one typed command. Every front-end goes through here."""
+    line = line.strip()
+    if line == "help":
+        return Reply(HELP)
+    if line == "score":
+        if not ep.state.done:
+            return Reply("Finish the job first.")
+        r = ep.result()
+        r.pop("functional_test")
+        return Reply(json.dumps(r, indent=2))
+    try:
+        tool, args = parse(line)
+    except ValueError as e:
+        return Reply(str(e))
+    obs = ep.act(tool, **args)  # the text is exactly what the agent gets for this call
+    return Reply(obs.text, obs.image, obs.hotspots)
 
-    out = Path(a.out)
-    ep = Episode(a.seed, a.level, facts=a.facts, render=not a.no_render,
-                 log_dir=out / f"{a.seed}-{a.level}")
-    print(__doc__.split("Commands are")[0].strip().splitlines()[0])
+
+def start(seed: int, level: int, facts: bool, render: bool, out: Path) -> tuple[Episode, Reply]:
+    ep = Episode(seed, level, facts=facts, render=render, log_dir=out / f"{seed}-{level}")
+    return ep, handle(ep, "briefing")
+
+
+def terminal(ep: Episode, first: Reply, out: Path) -> None:
     (out / "view.html").write_text(VIEWER)
-    print(f"House {a.seed}, level {a.level}. Open {(out / 'view.html').resolve()} in a browser "
-          "to watch the view.\n")
+    print(f"Open {(out / 'view.html').resolve()} in a browser to watch the view. "
+          "Type `help` for commands.\n")
 
-    def show(obs):
-        print(obs.text + "\n")
-        if obs.png:
-            (out / "current.png").write_bytes(obs.png)
+    def show(reply: Reply) -> None:
+        print(reply.text + "\n")
+        if reply.image:
+            (out / "current.jpg").write_bytes(reply.image)
 
-    show(ep.act("briefing"))
+    show(first)
     while True:
         try:
             line = input("> ").strip()
@@ -102,26 +138,29 @@ def main() -> int:
             break
         if line in ("quit", "exit"):
             break
-        if line == "help":
-            print(__doc__.split("Commands are")[1].split("Playtesting")[0])
-            print("Fault names: " + ", ".join(DIAGNOSES) + "\n")
-            continue
-        if line == "score":
-            if not ep.state.done:
-                print("Finish the job first.\n")
-                continue
-            r = ep.result()
-            r.pop("functional_test")
-            print(json.dumps(r, indent=2) + "\n")
-            continue
-        try:
-            tool, args = parse(line)
-        except ValueError as e:
-            print(f"{e}\n")
-            continue
-        show(ep.act(tool, **args))
-        if ep.state.done:
-            print(f"Score: {ep.result()['score']}. Type `score` for the breakdown, `quit` to leave.\n")
+        show(handle(ep, line))
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Play PlumberBench yourself.")
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--level", type=int, default=1)
+    ap.add_argument("--facts", action="store_true", help="show the FACTS list (off for playtests)")
+    ap.add_argument("--no-render", action="store_true", help="text only, no pictures")
+    ap.add_argument("--web", action="store_true", help="play in the browser instead of the terminal")
+    ap.add_argument("--port", type=int, default=8800, help="port for --web")
+    ap.add_argument("--no-browser", action="store_true", help="with --web, do not open a browser")
+    ap.add_argument("--out", default="play")
+    a = ap.parse_args()
+
+    out = Path(a.out)
+    print(f"PlumberBench, house {a.seed}, level {a.level}.")
+    ep, first = start(a.seed, a.level, a.facts, not a.no_render, out)
+    if a.web:
+        from .web import serve
+        serve(ep, first, a.port, open_browser=not a.no_browser)
+    else:
+        terminal(ep, first, out)
     return 0
 
 

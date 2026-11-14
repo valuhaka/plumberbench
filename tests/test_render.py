@@ -119,7 +119,7 @@ def render():
         render_array(generate(0, 1))
     except Exception as e:  # no EGL on this machine
         pytest.skip(f"no headless GL: {e}")
-    return render_array
+    return lambda s, focus=None: render_array(s, focus)[0]
 
 
 def digest(a):
@@ -135,9 +135,46 @@ def test_render_is_deterministic_and_reuse_is_invisible(render):
     first = digest(render(a))
     render(b)                       # same view, different house, reusing the GL context
     again = digest(render(a))
-    r._cache.clear()
+    r._gl_thread.submit(r._cache.clear).result()
     fresh = digest(render(a))       # compiled from scratch
     assert first == again == fresh
+
+
+def test_close_up_shares_the_context_and_moves_only_the_camera(render):
+    import plumberbench.render as r
+    s = generate(3, 2)
+    s.view = "under_sink"
+    tag = s.comps["trap.kitchen"].tag
+    full = digest(render(s))
+    close = render(s, tag)
+    assert digest(close) != full
+    assert digest(render(s)) == full, "the next full view is not left with the close-up camera"
+    r._gl_thread.submit(r._cache.clear).result()
+    assert digest(render(s, tag)) == digest(close)
+
+
+def test_rendering_from_many_threads(render):
+    """Servers call from worker threads; every frame must still come out right."""
+    from concurrent.futures import ThreadPoolExecutor
+    s = generate(4, 1)
+    want = digest(render(s))
+    with ThreadPoolExecutor(4) as pool:
+        got = list(pool.map(lambda _: digest(render(s)), range(8)))
+    assert got == [want] * 8
+
+
+def test_close_up_camera_is_nearer_and_aimed_at_the_part():
+    s = generate(3, 2)
+    s.view = "under_sink"
+    full = build(s)
+    for c in s.in_view():
+        close = build(s, c.tag)
+        dist = lambda cam: sum((a - b) ** 2 for a, b in zip(cam, full.anchors[c.tag])) ** 0.5
+        assert dist(close.camera_pos) < 0.5 * dist(full.camera_pos)
+        assert close.camera_target == full.anchors[c.tag]
+        assert len(close.shapes) == len(full.shapes) and close.key == full.key
+    with pytest.raises(ValueError):
+        build(s, s.comps["main"].tag)  # not in this view
 
 
 def test_status_stamp_changes_the_picture(render):

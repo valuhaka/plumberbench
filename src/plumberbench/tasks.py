@@ -33,7 +33,7 @@ JUDGE_FILES = ["__init__.py", "world.py", "sim.py", "generate.py", "judge.py"]
 
 PINS = "mujoco==4.0.1 pillow==12.3.0 numpy==2.5.3 fastmcp==4.2.0"
 
-FACTS_NOTE = """- Each response also ends with a line starting `FACTS`: a JSON list of what the view shows,
+FACTS_NOTE = """- Each response also ends with a `FACTS:` section: a JSON list of what the view shows,
   following the same visibility rules as the picture (you cannot see inside a pipe that is closed).
 """
 

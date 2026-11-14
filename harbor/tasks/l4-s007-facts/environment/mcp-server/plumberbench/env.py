@@ -16,8 +16,11 @@ from .judge import score
 
 @dataclass
 class Obs:
+    """One response. Every front-end (MCP, terminal, browser) shows exactly `text` and `image`."""
+
     text: str
-    png: bytes | None = None
+    image: bytes | None = None          # JPEG of the view, or of a close-up after `inspect`
+    hotspots: list = field(default_factory=list)  # boxes of the tag labels drawn on `image`
     facts: list = field(default_factory=list)
     error: bool = False
 
@@ -40,12 +43,13 @@ class Episode:
         try:
             message = sim.apply(s, tool, args)
         except sim.ActionError as e:
-            return Obs(text=f"{observe.status(s)}\nERROR: {e} No time passed.", error=True)
+            return Obs(text=observe.error(s, str(e)), error=True)
         self.actions.append((tool, args))
         obs = Obs(text=observe.text(s, message, self.with_facts), facts=observe.facts(s))
         if self.render:
             from .render import render  # imported late so headless tests need no GL
-            obs.png = render(s)
+            focus = s.by_tag(args["tag"]).tag if tool == "inspect" else None
+            obs.image, obs.hotspots = render(s, focus)
         self._log(tool, args, obs)
         return obs
 
@@ -61,9 +65,9 @@ class Episode:
             return
         s = self.state
         frame = None
-        if obs.png:
-            frame = f"step_{s.step:03d}.png"
-            (self.log_dir / frame).write_bytes(obs.png)
+        if obs.image:
+            frame = f"step_{s.step:03d}.jpg"
+            (self.log_dir / frame).write_bytes(obs.image)
         row = {"step": s.step, "tool": tool, "args": args, "tick": s.tick,
                "damage": s.damage, "text": obs.text, "frame": frame}
         with (self.log_dir / "episode.jsonl").open("a") as f:

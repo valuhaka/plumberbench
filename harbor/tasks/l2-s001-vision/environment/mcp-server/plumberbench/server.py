@@ -6,7 +6,7 @@ Settings (environment variables):
     PB_SEED, PB_LEVEL     which house (default 0, 1)
     PB_FACTS              1: every response also lists what the view shows as
                           FACTS (default); 0: images and sounds only
-    PB_RENDER             1: attach a PNG of the view to every response (default)
+    PB_RENDER             1: attach a JPEG of the view to every response (default)
     PB_LOG_DIR            where the action log, frames and result.json go
                           (default /var/plumberbench); keep it out of the
                           agent's container
@@ -50,8 +50,9 @@ mcp = FastMCP(
     instructions=(
         "You are a plumber in a small house with a kitchen, a bathroom and a utility room. "
         "Every tool call is one action. Most actions take time, shown in the status line as "
-        "time used/time budget. Each response shows the view you are looking at, with every "
-        "part tagged (V valve, J joint, T trap, C cleanout plug, A tap aerator). "
+        "time used/time budget. Each response has a picture of the view you are looking at, with "
+        "every part tagged (V valve, J joint, T trap, C cleanout plug, A tap aerator), and text in "
+        "sections: STATUS, RESULT, YOU HEAR, IN VIEW. You can only act on parts in the current view. "
         "Call `briefing` first. Call `finish` once, when the job is done."
     ),
 )
@@ -61,14 +62,14 @@ Tag = Annotated[str, Field(description="A part's tag as shown in the view, e.g. 
 
 def _respond(tool: str, **args):
     if not lock.acquire(blocking=False):
-        return "ERROR: Another action is still in progress. Actions run one at a time. No time passed."
+        return observe.error(episode.state, "Another action is still in progress. Actions run one at a time.")
     try:
         obs = episode.act(tool, **args)
     finally:
         lock.release()
-    if obs.png is None:
+    if obs.image is None:
         return obs.text
-    return [obs.text, Image(data=obs.png, format="png")]
+    return [obs.text, Image(data=obs.image, format="jpeg")]
 
 
 @mcp.tool
@@ -99,9 +100,9 @@ def look(view: Literal["counter", "under_sink", "wall"]):
 
 @mcp.tool
 def inspect(tag: Tag):
-    """Examine one part in this room closely. Takes 3 time units.
+    """Examine one part in the current view closely. Takes 3 time units.
 
-    Valves: how far open. Joints: whether the nut is loose and whether it is
+    The picture returned is a close-up of the part. Valves: how far open. Joints: whether the nut is loose and whether it is
     seeping. Aerators: whether the screen is blocked. Traps cannot be seen into
     unless removed. Tapping the cleanout tells whether the pipe behind it holds water.
     """
@@ -127,7 +128,7 @@ def wait(ticks: Annotated[int, Field(ge=1, le=10, description="How long to wait,
 
 @mcp.tool
 def set_valve(tag: Tag, position: Literal["open", "half", "closed"]):
-    """Turn a valve in this room to a position. Takes 1 time unit.
+    """Turn a valve in the current view to a position. Takes 1 time unit.
 
     A closed valve takes the pressure off everything downstream of it. Leave
     every valve at least as open as you found it, unless it was meant to be open.
@@ -137,7 +138,7 @@ def set_valve(tag: Tag, position: Literal["open", "half", "closed"]):
 
 @mcp.tool
 def place_bucket(tag: Tag):
-    """Empty the bucket and set it under a joint, trap or cleanout in this room. Takes 1 time unit.
+    """Empty the bucket and set it under a joint, trap or cleanout in the current view. Takes 1 time unit.
 
     The bucket catches drips and anything that pours out when the part is
     opened, up to 10 units. Water that misses it ends up on the floor as damage.
@@ -167,7 +168,7 @@ def close_joint(tag: Tag):
 
 @mcp.tool
 def repair(tag: Tag, method: Literal["tighten", "clear"]):
-    """Fix a part in this room. Takes 3 time units.
+    """Fix a part in the current view. Takes 3 time units.
 
     tighten: a joint's nut. Fixes a loose nut; forcing a nut that is already
     tight crushes its washer and makes it leak. clear: an aerator screen, or a

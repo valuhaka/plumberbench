@@ -10,11 +10,14 @@ Built for AfterQuery's *Break the Agent* challenge at Junction 2026, on Harbor w
 
 ```bash
 ./scripts/check.sh                                   # tests + difficulty ladder; no Docker, no credits
-uv run -m plumberbench.play --seed 3 --level 2       # play a house yourself; watch it in play/view.html
+uv run -m plumberbench.play --seed 3 --level 2 --web # play a house yourself in the browser
+uv run -m plumberbench.play --seed 3 --level 2       # ...or in the terminal (watch play/view.html)
 ./scripts/judge_runs.sh provider/model-name          # the judged runs, through Harbor (Docker + credits)
 ```
 
-Rendering works on Linux (headless EGL, CPU is enough) and macOS (CGL). While you play, keep `play/view.html` open in a browser: it reloads the current view every second.
+Rendering works on Linux (headless EGL, CPU is enough) and macOS (CGL).
+
+**Playing it yourself.** The browser page shows the picture with clickable tags (each opens the actions that kind of part allows, with their time cost), tabs for rooms and views, the tap and wait controls, status bars and a log. Every button just types a command into the same command handler the terminal uses. `tests/test_views.py` runs one sequence of commands through the agent's MCP server, the terminal and the browser and requires the same text and the same picture, byte for byte, at every step. It also requires that the browser adds nothing: fixed payload fields, a static page, menus that depend only on a tag's letter, and clickable areas only where a label is already drawn.
 
 ## What makes it hard
 
@@ -44,17 +47,30 @@ src/plumberbench/
   solver.py     scripted reference plumber; talks only through the tools
   baselines.py  exploit policies the judge must give nothing
   tasks.py      writes Harbor task folders
-  play.py       human play in the terminal
+  play.py       human play: one command handler, terminal front-end
+  web.py        browser front-end over the same handler (local only, never in a task)
   replay.py     turns an episode log into a one-file HTML replay
 harbor/tasks/          80 generated tasks: levels 1-4 x seeds 0-9 x {facts, vision}
 harbor/smoke-vision/   harness check: do MCP images reach the model, and stay fresh?
 pb_agents/             stop-early and close-the-main baseline agents for Harbor
-tests/                 rules, judge, rendering, live server and generated tasks
+tests/                 rules, judge, rendering, live server, generated tasks, front-end consistency
 ```
 
 **The world.** Two networks. Supply is pressurized: water reaches a tap if every valve on the path from the main is open (half open gives weak flow). The drain is gravity: a basin empties at 2 units per tick unless something on the path to the stack is clogged. Time moves in ticks; leaks drip per tick; overflow and spills are damage. The image is a pure function of the state, so the picture can never disagree with the rules.
 
-**The tools.** `briefing`, `go`, `look`, `inspect`, `run_tap`, `wait`, `set_valve`, `place_bucket`, `open_joint`, `close_joint`, `repair`, `finish`. Costs are stated in each tool's description and in the instruction. Impossible actions are refused at no cost. Every response starts with a status line (step, time, damage, location, bucket, washers); step, time, damage and location are also stamped into the picture, so a stale frame is detectable.
+**The tools.** `briefing`, `go`, `look`, `inspect`, `run_tap`, `wait`, `set_valve`, `place_bucket`, `open_joint`, `close_joint`, `repair`, `finish`. Costs are stated in each tool's description and in the instruction. Only parts in the current view can be touched; impossible actions are refused at no cost. `inspect` returns a close-up picture of the part.
+
+**What comes back.** Every response has a JPEG of the view and text in labelled sections:
+
+```
+STATUS: step 14 | time 23/55 | damage 2 | kitchen/under_sink | bucket under T1 (3/10) | washers 2
+RESULT: You turned V2 to closed.
+YOU HEAR: Dripping in this room.
+IN VIEW: J1 J2 J3 J4 J9 J10 T2 V2 V11
+FACTS: [...]                         (facts mode only)
+```
+
+Step, time, damage and location are also stamped into the picture, so a stale frame is detectable. All GL work runs on one dedicated thread, so the server can be called from any thread.
 
 **Two modes.** In `facts` mode every response also ends with a FACTS list of what the view shows, under the same visibility rules as the picture. In `vision` mode the agent gets pictures and sounds only. The reference solver cannot see, so in vision mode it reads FACTS through a token-protected route; the token is only in the oracle's `solution/`, never in the agent's container.
 
@@ -116,10 +132,11 @@ Each task runs the simulator as a compose sidecar (`mcp-server`, Python 3.13 sli
 - **No container has been built.** Docker Hub was blocked where this was written. The simulator, server, solver and verifier are tested natively (Python 3.13, Mesa EGL on Ubuntu 24.04); the `python:3.13-slim` image with the listed Mesa packages is untested.
 - **No Harbor run has happened.** Task folders follow Harbor's own examples (commit b06002e, 2026-11-13): `hello-mcp` for the MCP sidecar, `sidecar-artifacts` for sidecar artifacts and the separate verifier. Directory artifacts and `-k` are from Harbor's source, not from a run.
 - **No model has played it.** Whether a frontier agent shows a gap is the open question; the ladder exists so the level can be picked once real numbers are in.
-- **No human playtest yet.** Two or three people should play three to five houses each in vision mode, without reading the source.
+- **No human playtest yet.** Two or three people should play three to five houses each with `play --web` (no `--facts`), without reading the source.
 
 ## Next
 
-1. Hour one at the event: build the images, run the smoke test three times, run the oracle on one task.
-2. Agent runs on levels 1-4 in both modes; pick the judged level where the reference is above 0.9 and the agent lands between 0.3 and 0.6.
-3. Stretch (tiebreaker, and Modal's challenge): fine-tune a small open-weight vision model on reference-solver trajectories and show the before and after on held-out seeds.
+1. Perception quiz: single frames with questions answered from FACTS (is V3 open, half or closed? which joints drip? what is the basin level?), to measure how much of the images-only gap is perception and check the task is not saturated.
+2. Hour one at the event: build the images, run the smoke test three times, run the oracle on one task.
+3. Agent runs on levels 1-4 in both modes; pick the judged level where the reference is above 0.9 and the agent lands between 0.3 and 0.6.
+4. Stretch (tiebreaker, and Modal's challenge): fine-tune a small open-weight vision model on reference-solver trajectories and show the before and after on held-out seeds.

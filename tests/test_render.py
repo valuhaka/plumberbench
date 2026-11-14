@@ -135,7 +135,7 @@ def test_render_is_deterministic_and_reuse_is_invisible(render):
     first = digest(render(a))
     render(b)                       # same view, different house, reusing the GL context
     again = digest(render(a))
-    r._gl_thread.submit(r._cache.clear).result()
+    r.close_all()
     fresh = digest(render(a))       # compiled from scratch
     assert first == again == fresh
 
@@ -149,7 +149,7 @@ def test_close_up_shares_the_context_and_moves_only_the_camera(render):
     close = render(s, tag)
     assert digest(close) != full
     assert digest(render(s)) == full, "the next full view is not left with the close-up camera"
-    r._gl_thread.submit(r._cache.clear).result()
+    r.close_all()
     assert digest(render(s, tag)) == digest(close)
 
 
@@ -184,3 +184,44 @@ def test_status_stamp_changes_the_picture(render):
     after = render(s)
     assert digest(before[40:]) == digest(after[40:]), "below the stamp the view is unchanged"
     assert digest(before[:30]) != digest(after[:30]), "the stamp shows the new step"
+
+
+def test_renderers_are_closed_on_the_gl_thread(render):
+    """On macOS, closing a renderer from another thread deadlocks, so nothing else may close one."""
+    import threading
+
+    import plumberbench.render as r
+    render(generate(0, 1))
+    closed_on = []
+    for _, _, renderer in r._cache.values():
+        original = renderer.close
+        def close(original=original):
+            closed_on.append(threading.current_thread().name)
+            original()
+        renderer.close = close
+    assert closed_on == [] and r._cache
+    r.close_all()
+    assert closed_on and set(closed_on) == {"plumberbench-gl"}
+    assert not r._cache
+
+
+@pytest.mark.parametrize("from_worker", [False, True], ids=["main thread", "worker thread"])
+def test_a_process_that_rendered_exits_promptly(render, from_worker):
+    """The macOS freeze: a process that drew a frame must still be able to exit."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    code = (
+        "import threading\n"
+        "from plumberbench.generate import generate\n"
+        "from plumberbench.render import render\n"
+        "s = generate(0, 1)\n"
+        + ("t = threading.Thread(target=lambda: render(s)); t.start(); t.join()\n" if from_worker
+           else "render(s)\n")
+        + "print('rendered')\n"
+    )
+    src = Path(__file__).resolve().parents[1] / "src"
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60,
+                          env={**__import__("os").environ, "PYTHONPATH": str(src)})
+    assert done.returncode == 0 and "rendered" in done.stdout, done.stderr

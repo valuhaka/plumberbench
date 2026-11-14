@@ -72,7 +72,7 @@ def via_terminal(facts: bool, lines: list[str], out: Path) -> str:
            "--out", str(out)] + (["--facts"] if facts else [])
     env = {**os.environ, "PYTHONPATH": str(SRC)}
     done = subprocess.run(cmd, input="\n".join(lines) + "\nquit\n", text=True, capture_output=True,
-                          env=env, timeout=300, check=True)
+                          env=env, timeout=120, check=True)
     return done.stdout
 
 

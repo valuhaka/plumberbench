@@ -178,3 +178,20 @@ def test_a_run_through_the_agents_sdk_reproduces_the_reference_and_shows_the_pic
     assert '"input_image"' in last and "data:image/jpeg;base64," in last
     lines = [json.loads(x) for x in (tmp_path / "transcript.jsonl").read_text().splitlines()]
     assert sum("tool" in x for x in lines) == len(moves) and any(x.get("pictures") for x in lines)
+
+
+def test_a_reply_cut_off_while_thinking_is_reported_and_kept(monkeypatch):
+    thinking = {"type": "thinking", "thinking": "Where is the water going...", "signature": "sig"}
+    monkeypatch.setattr(agent, "post_json", lambda *a, **k: {
+        "content": [thinking], "stop_reason": "max_tokens", "usage": {"output_tokens": 16000}})
+    claude = agent.Anthropic("m", "key")
+    claude.start("system", "task", [])
+    turn = claude.step()
+    assert turn.cut_off and not turn.calls
+    assert claude.messages[-1] == {"role": "assistant", "content": [thinking]}  # history stays append-only
+
+    monkeypatch.setattr(agent, "post_json", lambda *a, **k: {
+        "choices": [{"message": {"role": "assistant", "content": None}, "finish_reason": "length"}]})
+    gpt = agent.OpenAICompatible("m", "key")
+    gpt.start("system", "task", [])
+    assert gpt.step().cut_off

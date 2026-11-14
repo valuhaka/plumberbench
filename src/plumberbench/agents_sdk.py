@@ -41,7 +41,7 @@ def output_pictures(output) -> int:
 class AgentsSDK:
     """Plays a whole episode through the OpenAI Agents SDK; see the module docstring."""
 
-    def __init__(self, model: str, key: str, base_url: str | None = None, max_tokens: int = 4096,
+    def __init__(self, model: str, key: str, base_url: str | None = None, max_tokens: int = 16000,
                  reasoning_effort: str | None = None, model_obj=None, tracing: bool = True):
         self.model, self.key, self.base_url = model, key, base_url
         self.max_tokens, self.reasoning_effort = max_tokens, reasoning_effort

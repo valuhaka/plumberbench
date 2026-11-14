@@ -83,6 +83,7 @@ class Turn:
     text: str
     calls: list[Call]
     usage: dict
+    cut_off: bool = False  # the reply hit the output-token limit (thinking counts towards it)
 
 
 # --------------------------------------------------------------- providers
@@ -112,7 +113,7 @@ def post_json(url: str, headers: dict, body: dict, timeout: float = 300.0) -> di
 class Anthropic:
     """Claude through the Messages API, with prompt caching."""
 
-    def __init__(self, model: str, key: str, base_url: str | None = None, max_tokens: int = 4096):
+    def __init__(self, model: str, key: str, base_url: str | None = None, max_tokens: int = 16000):
         self.model, self.key, self.max_tokens = model, key, max_tokens
         self.url = (base_url or "https://api.anthropic.com").rstrip("/") + "/v1/messages"
         self.messages: list[dict] = []
@@ -144,7 +145,8 @@ class Anthropic:
         u = r.get("usage", {})
         return Turn(text, calls, {"input": u.get("input_tokens", 0), "output": u.get("output_tokens", 0),
                                   "cache_read": u.get("cache_read_input_tokens", 0),
-                                  "cache_write": u.get("cache_creation_input_tokens", 0)})
+                                  "cache_write": u.get("cache_creation_input_tokens", 0)},
+                    cut_off=r.get("stop_reason") == "max_tokens")
 
     def add_results(self, results: list[Result]) -> None:
         blocks = []
@@ -160,7 +162,7 @@ class Anthropic:
 class OpenAICompatible:
     """Any OpenAI-compatible Chat Completions endpoint."""
 
-    def __init__(self, model: str, key: str, base_url: str | None = None, max_tokens: int = 4096,
+    def __init__(self, model: str, key: str, base_url: str | None = None, max_tokens: int = 16000,
                  reasoning_effort: str | None = None):
         self.model, self.key, self.max_tokens = model, key, max_tokens
         self.reasoning_effort = reasoning_effort
@@ -181,7 +183,8 @@ class OpenAICompatible:
 
     def step(self) -> Turn:
         r = post_json(self.url, {"authorization": f"Bearer {self.key}"}, self.request())
-        msg = r["choices"][0]["message"]
+        choice = r["choices"][0]
+        msg = choice["message"]
         keep = {"role": "assistant", "content": msg.get("content")}
         if msg.get("tool_calls"):
             keep["tool_calls"] = msg["tool_calls"]
@@ -197,7 +200,8 @@ class OpenAICompatible:
         cached = (u.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0
         return Turn(msg.get("content") or "", calls,
                     {"input": u.get("prompt_tokens", 0) - cached, "output": u.get("completion_tokens", 0),
-                     "cache_read": cached, "cache_write": 0})
+                     "cache_read": cached, "cache_write": 0},
+                    cut_off=choice.get("finish_reason") == "length")
 
     def add_results(self, results: list[Result]) -> None:
         pictures = []
@@ -324,7 +328,7 @@ async def play(provider, url: str, task: str, max_turns: int, transcript: Path) 
                     log.write(json.dumps({"turn": turns, "text": turn.text, "usage": turn.usage,
                                           "calls": [[c.name, c.args] for c in turn.calls]}) + "\n")
                     if not turn.calls:
-                        stop = "model stopped"
+                        stop = "cut off: raise --max-tokens" if turn.cut_off else "model stopped"
                         final = turn.text
                         break
                     results, over = [], False
@@ -474,7 +478,8 @@ def main() -> int:
         p.add_argument("--model", required=True)
         p.add_argument("--base-url", help="API base URL (for OpenAI-compatible endpoints other than OpenAI)")
         p.add_argument("--key-env", help="environment variable holding the API key")
-        p.add_argument("--max-tokens", type=int, default=4096, help="output tokens per model turn")
+        p.add_argument("--max-tokens", type=int, default=16000,
+                       help="output tokens per model turn, thinking included (a cap: only what is used is billed)")
         p.add_argument("--reasoning-effort", help="OpenAI providers: e.g. none, low, medium, high")
         p.add_argument("--out", default="runs")
         if name == "run":

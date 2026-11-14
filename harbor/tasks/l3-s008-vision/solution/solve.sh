@@ -3,4 +3,4 @@
 set -euo pipefail
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source "$HOME/.local/bin/env"
-uv run --with mcp python3 /solution/solver.py http://mcp-server:8000/mcp "http://mcp-server:8000/facts?token=87fe290f00fc9adc5fdbb5d48cfe52bb"
+uv run --with mcp python3 /solution/solver.py http://mcp-server:8000/mcp "http://mcp-server:8000/facts?token=91a71338105c753b58a17cb977e62492"

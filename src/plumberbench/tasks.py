@@ -24,7 +24,7 @@ import shutil
 from pathlib import Path
 
 from .generate import LEVELS
-from .world import DIAGNOSES
+from .world import DIAGNOSES, DIAGNOSIS_TEXT
 
 PKG = Path(__file__).parent
 SERVER_FILES = ["__init__.py", "world.py", "sim.py", "generate.py", "judge.py", "observe.py",
@@ -189,6 +189,13 @@ print(json.dumps({{k: result[k] for k in ("score", "repair", "faults_fixed", "fa
 DIFFICULTY = {1: "easy", 2: "medium", 3: "hard", 4: "hard"}
 
 
+def instruction_text(facts: bool) -> str:
+    """The task instruction the agent gets, for facts or pictures-only mode."""
+    text = (PKG / "instruction.md").read_text()
+    text = text.replace("{facts_note}", FACTS_NOTE if facts else "")
+    return text.replace("{diagnoses}", "\n".join(f"- `{d}`: {DIAGNOSIS_TEXT[d]}." for d in DIAGNOSES))
+
+
 def task_name(level: int, seed: int, mode: str) -> str:
     return f"l{level}-s{seed:03d}-{mode}"
 
@@ -204,10 +211,7 @@ def write_task(root: Path, level: int, seed: int, mode: str) -> Path:
 
     facts = mode == "facts"
     token = "" if facts else secrets.token_hex(16)
-    instruction = (PKG / "instruction.md").read_text()
-    instruction = instruction.replace("{facts_note}", FACTS_NOTE if facts else "")
-    instruction = instruction.replace("{diagnoses}", ", ".join(f"`{x}`" for x in DIAGNOSES))
-    (d / "instruction.md").write_text(instruction)
+    (d / "instruction.md").write_text(instruction_text(facts))
     (d / "task.toml").write_text(TASK_TOML.format(name=name, level=level, seed=seed, mode=mode,
                                                   difficulty=DIFFICULTY[level]))
 

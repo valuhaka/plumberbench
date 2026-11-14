@@ -51,6 +51,17 @@ DIAGNOSES = (
     "valve_not_open",
 )
 
+# What each fault type is. Shown to the agent (instruction, `finish` tool) and to
+# people (terminal `help`, the browser's finish dialog) in exactly these words.
+DIAGNOSIS_TEXT = {
+    "trap_clog": "a blocked trap, the U-bend under a basin",
+    "branch_clog": "a blocked drain branch, shared by both basins, behind the cleanout plug in the utility room",
+    "supply_leak": "a leaking joint on a hot or cold supply line",
+    "drain_leak": "a leaking joint on the drain under a basin",
+    "aerator_clog": "a blocked aerator, the screen on the end of a tap's spout",
+    "valve_not_open": "a valve that should be open, left closed or half open",
+}
+
 
 @dataclass
 class Comp:

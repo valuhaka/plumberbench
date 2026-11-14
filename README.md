@@ -10,9 +10,11 @@ Built for AfterQuery's *Break the Agent* challenge at Junction 2026, on Harbor w
 
 ```bash
 ./scripts/check.sh                                   # tests + difficulty ladder; no Docker, no credits
-python -m plumberbench.play --seed 3 --level 2       # play a house yourself; the view goes to play/current.png
+uv run -m plumberbench.play --seed 3 --level 2       # play a house yourself; watch it in play/view.html
 ./scripts/judge_runs.sh provider/model-name          # the judged runs, through Harbor (Docker + credits)
 ```
+
+Rendering works on Linux (headless EGL, CPU is enough) and macOS (CGL). While you play, keep `play/view.html` open in a browser: it reloads the current view every second.
 
 ## What makes it hard
 

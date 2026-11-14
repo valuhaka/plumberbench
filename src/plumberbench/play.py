@@ -3,9 +3,10 @@
     python -m plumberbench.play --seed 3 --level 2
     python -m plumberbench.play --seed 3 --level 2 --facts     # also print FACTS
 
-The current view is written to play/current.png after every action (open it
-in an image viewer that reloads on change), and the whole episode is logged
-to play/<seed>-<level>/ so it can be turned into a replay page.
+The current view is written to play/current.png after every action. Open
+play/view.html in a browser once: it shows that picture and reloads it every
+second. The whole episode is logged to play/<seed>-<level>/ so it can be
+turned into a replay page.
 
 Commands are the tool names followed by their arguments:
 
@@ -30,6 +31,20 @@ from pathlib import Path
 
 from .env import Episode
 from .world import DIAGNOSES
+
+VIEWER = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>PlumberBench: current view</title>
+<style>body{margin:0;background:#16181d;display:grid;place-items:center;height:100vh}
+img{max-width:100vw;max-height:100vh}</style></head>
+<body><img id="v" src="current.png" alt="current view">
+<script>
+setInterval(() => {
+  const next = new Image();
+  next.onload = () => { document.getElementById("v").src = next.src; };
+  next.src = "current.png?" + Date.now();
+}, 1000);
+</script></body></html>
+"""
 
 ARGS = {
     "briefing": [], "go": ["room"], "look": ["view"], "inspect": ["tag"],
@@ -70,7 +85,9 @@ def main() -> int:
     ep = Episode(a.seed, a.level, facts=a.facts, render=not a.no_render,
                  log_dir=out / f"{a.seed}-{a.level}")
     print(__doc__.split("Commands are")[0].strip().splitlines()[0])
-    print(f"House {a.seed}, level {a.level}. Images go to {out / 'current.png'}.\n")
+    (out / "view.html").write_text(VIEWER)
+    print(f"House {a.seed}, level {a.level}. Open {(out / 'view.html').resolve()} in a browser "
+          "to watch the view.\n")
 
     def show(obs):
         print(obs.text + "\n")

@@ -91,7 +91,7 @@ uv run -m plumberbench.agent run --provider openai --model MODEL --base-url http
 
 ## The website
 
-`site/` is a static site for Cloudflare Workers. `site/main.html` is its entry point; for now it is the demo, a step-through replay of the reference plumber on house 7, level 3. `worker/index.js` serves `site/` and maps `/` to `main.html`.
+`site/` is a static site for Cloudflare Workers. `site/main.html` is the front page: the pitch header, with four frames from the demo run. `site/demo.html` is that run, a step-through replay of the reference plumber on house 7, level 3. `worker/index.js` serves `site/` and maps `/` to `main.html`.
 
 ```bash
 uv run -m plumberbench.demo
@@ -99,18 +99,18 @@ npx wrangler dev
 npx wrangler deploy
 ```
 
-`plumberbench.demo` rebuilds `site/main.html`; `wrangler dev` previews at `localhost:8787`; `wrangler deploy` publishes (run `npx wrangler login` once first).
+`plumberbench.demo` rebuilds both pages from one run; `wrangler dev` previews at `localhost:8787`; `wrangler deploy` publishes (run `npx wrangler login` once first).
 
 ## Repository
 
 ```
 src/plumberbench/   world, sim, layout, generate (the house); scene, render (pictures); observe, env, server (MCP);
                     judge, solver, baselines; tasks (Harbor folders); play, web (people); agent (local runner);
-                    replay, demo (pages)
+                    replay, lander, demo (pages)
 harbor/smoke-vision/   harness check: do pictures reach the model, and stay fresh?
 pb_agents/             stop-early and close-the-main baseline agents for Harbor
 site/, worker/         the website and its Cloudflare Worker
-tests/                 rules, judge, layouts, rendering, server, Harbor tasks, runner, front-end consistency, page layout
+tests/                 rules, judge, layouts, rendering, server, Harbor tasks, runner, front-end consistency, page layout, site
 ```
 
 ## Status

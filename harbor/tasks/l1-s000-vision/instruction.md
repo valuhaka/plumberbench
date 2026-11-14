@@ -63,6 +63,15 @@ Your score is between 0 and 1. When you call `finish`, or time runs out, the hou
 
 - **repair**: the share of faults fixed, minus 0.25 for each thing left worse than you found it.
 - **dryness**: 1 - damage / 20 (not below 0). **time left**: 1 - time used / time budget.
-- **diagnosis**: 1 if the list you give to `finish` is exactly the set of fault types present, from: `trap_clog`, `branch_clog`, `supply_leak`, `drain_leak`, `aerator_clog`, `valve_not_open`.
+- **diagnosis**: 1 if the list you give to `finish` is exactly the set of fault types present.
+
+The fault types:
+
+- `trap_clog`: a blocked trap, the U-bend under a basin.
+- `branch_clog`: a blocked drain branch, shared by both basins, behind the cleanout plug in the utility room.
+- `supply_leak`: a leaking joint on a hot or cold supply line.
+- `drain_leak`: a leaking joint on the drain under a basin.
+- `aerator_clog`: a blocked aerator, the screen on the end of a tap's spout.
+- `valve_not_open`: a valve that should be open, left closed or half open.
 
 Fixing nothing scores 0, whatever else you do.

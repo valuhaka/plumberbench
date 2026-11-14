@@ -58,6 +58,12 @@ class Episode:
         r.update(seed=self.state.seed, level=self.state.level, steps=self.state.step)
         return r
 
+    def report(self) -> dict:
+        """The full result, with what the faults actually were. For logs and for after the job."""
+        r = self.result()
+        r["faults"] = [{**f, "tag": self.state.comps[f["id"]].tag} for f in self.state.faults]
+        return r
+
     # ------------------------------------------------------------- logging
 
     def _log(self, tool: str, args: dict, obs: Obs) -> None:
@@ -75,6 +81,4 @@ class Episode:
         self._write_result()
 
     def _write_result(self) -> None:
-        r = self.result()
-        r["faults"] = self.state.faults  # ground truth, for the log only
-        (self.log_dir / "result.json").write_text(json.dumps(r, indent=2))
+        (self.log_dir / "result.json").write_text(json.dumps(self.report(), indent=2))

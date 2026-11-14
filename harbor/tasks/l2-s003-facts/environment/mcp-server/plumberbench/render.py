@@ -14,11 +14,14 @@ browser play page uses them to make the labels clickable.
 """
 from __future__ import annotations
 
+import atexit
 import io
 import math
 import os
 import platform
-from concurrent.futures import ThreadPoolExecutor
+import queue
+import threading
+from concurrent.futures import Future
 
 
 def default_gl(system: str) -> str | None:
@@ -92,7 +95,7 @@ def _renderer_for(sc: Scene, model_now: mujoco.MjModel):
     entry = _cache.get(sc.key)
     if entry is None or entry[0].ngeom != model_now.ngeom:
         if entry is not None:
-            entry[2].close()
+            entry[2].close()  # runs on the GL thread: see _GLThread
         data = mujoco.MjData(model_now)
         entry = (model_now, data, mujoco.Renderer(model_now, height=HEIGHT, width=WIDTH))
         _cache[sc.key] = entry
@@ -184,14 +187,68 @@ def _stamp(img: Image.Image, s: State, focus: str | None) -> None:
     draw.text((10, 5), line, fill=(255, 255, 255), font=_font(17))
 
 
-# A GL context can be current on only one thread at a time, and servers may call
-# from any thread. All GL work therefore runs on this one thread.
-_gl_thread = ThreadPoolExecutor(max_workers=1, thread_name_prefix="plumberbench-gl")
+class _GLThread:
+    """Every GL call, including freeing contexts, happens on this one thread.
+
+    A GL context belongs to one thread at a time, and servers may call from any
+    thread. On macOS it is stricter: MuJoCo's CGL backend locks a context each
+    time it is made current and unlocks it only when freed, so a renderer freed
+    from any other thread (for example by garbage collection on the main thread
+    at exit) waits forever for that lock. So renderers are created, used and
+    closed here, and `close_all` runs here at exit while this daemon thread is
+    still alive.
+    """
+
+    def __init__(self) -> None:
+        self._jobs: queue.Queue = queue.Queue()
+        self._thread: threading.Thread | None = None
+        self._start = threading.Lock()
+
+    def run(self, fn, *args):
+        if threading.current_thread() is self._thread:
+            return fn(*args)
+        with self._start:
+            if self._thread is None:
+                self._thread = threading.Thread(target=self._loop, name="plumberbench-gl", daemon=True)
+                self._thread.start()
+        done: Future = Future()
+        self._jobs.put((fn, args, done))
+        return done.result()
+
+    @property
+    def started(self) -> bool:
+        return self._thread is not None
+
+    def _loop(self) -> None:
+        while True:
+            fn, args, done = self._jobs.get()
+            try:
+                done.set_result(fn(*args))
+            except BaseException as e:  # hand every error back to the caller
+                done.set_exception(e)
+
+
+_gl = _GLThread()
+
+
+def _close_renderers() -> None:
+    for _, _, renderer in _cache.values():
+        renderer.close()
+    _cache.clear()
+
+
+def close_all() -> None:
+    """Free every GL context, on the thread that owns them."""
+    if _gl.started:
+        _gl.run(_close_renderers)
+
+
+atexit.register(close_all)
 
 
 def render_array(s: State, focus: str | None = None) -> tuple[np.ndarray, list[dict]]:
     """Pixels of the current view (or a close-up of `focus`) and the label hotspots."""
-    return _gl_thread.submit(_render_array, s, focus).result()
+    return _gl.run(_render_array, s, focus)
 
 
 def _render_array(s: State, focus: str | None) -> tuple[np.ndarray, list[dict]]:

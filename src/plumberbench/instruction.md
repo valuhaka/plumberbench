@@ -63,6 +63,10 @@ Your score is between 0 and 1. When you call `finish`, or time runs out, the hou
 
 - **repair**: the share of faults fixed, minus 0.25 for each thing left worse than you found it.
 - **dryness**: 1 - damage / 20 (not below 0). **time left**: 1 - time used / time budget.
-- **diagnosis**: 1 if the list you give to `finish` is exactly the set of fault types present, from: {diagnoses}.
+- **diagnosis**: 1 if the list you give to `finish` is exactly the set of fault types present.
+
+The fault types:
+
+{diagnoses}
 
 Fixing nothing scores 0, whatever else you do.

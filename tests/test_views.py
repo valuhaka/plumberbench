@@ -150,6 +150,20 @@ def test_mcp_terminal_and_browser_show_the_same_thing(tmp_path, facts):
     assert list(history) == ["log", "current"]
     assert [text for _, text in history["log"]] == [w["text"] for w in web_replies]
 
+    # The result: nothing while the job runs; afterwards the same full JSON in both front-ends.
+    ended = [i for i, w in enumerate(web_replies) if "The job is over" in w["text"]]
+    if not ended:
+        assert all(w["result"] is None for w in web_replies)
+        return
+    first_over = ended[0]
+    assert all(w["result"] is None for w in web_replies[:first_over])
+    result = web_replies[first_over]["result"]
+    assert result["score"] > 0.9 and result["faults"] and all("tag" in f for f in result["faults"])
+    assert all(w["result"] == result for w in web_replies[first_over:])
+    printed = stdout.split("The job is over. The result:\n", 1)[1]
+    assert json.loads(printed[:printed.index("\n}\n") + 2]) == result
+    assert stdout.count("The job is over. The result:") == 1
+
 
 def test_hotspots_only_mark_labels_drawn_on_the_picture(tmp_path):
     """Clickable tags are exactly labels already visible on the picture, for parts listed IN VIEW."""
@@ -171,6 +185,36 @@ def test_hotspots_only_mark_labels_drawn_on_the_picture(tmp_path):
             assert all(abs(m - c) < 30 for m, c in zip(mean, (255, 250, 225))), (h, mean)
             checked += 1
     assert checked > 50
+
+
+def test_the_page_says_nothing_the_agent_and_the_terminal_are_not_told():
+    """Every sentence the page states about the task is in the agent's instruction (the terminal's
+    `rules`), and every cost and fault description is in the terminal's `help`."""
+    from plumberbench.tasks import instruction_text
+    from plumberbench.world import COST, DIAGNOSIS_TEXT
+
+    for facts in (False, True):
+        rules = instruction_text(facts)
+        for sentence in web.FROM_INSTRUCTION:
+            assert sentence in rules, sentence
+        for letter, kind in web.KINDS.items():
+            assert f"{letter} {kind}" in rules
+        for d, text in DIAGNOSIS_TEXT.items():
+            assert f"`{d}`: {text}." in rules
+    for facts in (False, True):
+        assert play.handle(Episode(SEED, LEVEL, facts=facts, render=False), "rules").text == instruction_text(facts)
+    ep = Episode(SEED, LEVEL, render=False)
+    helptext = play.handle(ep, "help").text
+    for d, text in DIAGNOSIS_TEXT.items():
+        assert d in helptext and text in helptext
+    for tool, cost in COST.items():
+        if tool in ("look", "go", "inspect", "set_valve", "place_bucket", "open_joint", "close_joint", "repair"):
+            line = next(l for l in helptext.splitlines() if l.strip().startswith(tool))
+            assert line.endswith(f"({cost})"), line
+    assert web.STATIC["cost"] == {"go": COST["go"], "look": COST["look"]}
+    for items in web.MENUS.values():
+        for _, template, cost in items:
+            assert cost == COST[template.split()[0]]
 
 
 def test_menus_depend_only_on_the_tag_letter():

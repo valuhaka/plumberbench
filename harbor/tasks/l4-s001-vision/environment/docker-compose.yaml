@@ -14,7 +14,7 @@ services:
       PB_FACTS: "0"
       PB_RENDER: "1"
       PB_LOG_DIR: /var/plumberbench
-      PB_SOLVER_TOKEN: "1aa1092fd7263f7c1ac9abaaf07cf449"
+      PB_SOLVER_TOKEN: "d3851cde2a6f0556b6a34da0ff38a6ff"
     expose:
       - "8000"
     healthcheck:

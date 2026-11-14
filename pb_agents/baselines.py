@@ -51,12 +51,12 @@ async def main():
             elif PLAN == "close_main":
                 await call("go", room="utility")
                 wall = await call("look", view="wall")
-                facts = next((l[6:] for l in wall.splitlines() if l.startswith("FACTS ")), None)
+                facts = next((l[7:] for l in wall.splitlines() if l.startswith("FACTS: ")), None)
                 if facts:
                     main = next(f["tag"] for f in json.loads(facts) if f.get("role") == "main")
                     await call("set_valve", tag=main, position="closed")
                 else:  # images only: it cannot tell which valve is the main, so it shuts them all
-                    tags = re.search(r"Tags in view: (.*)", wall).group(1).split()
+                    tags = re.search(r"IN VIEW: (.*)", wall).group(1).split()
                     for t in tags:
                         if t.startswith("V"):
                             await call("set_valve", tag=t, position="closed")

@@ -155,8 +155,8 @@ def _here(s: State, tag: str, kinds: tuple[str, ...] | None = None) -> Comp:
     c = s.by_tag(tag)
     if c is None:
         raise ActionError(f"There is no part tagged {tag}.")
-    if c.room != s.room:
-        raise ActionError(f"{c.tag} is not in this room.")
+    if c.room != s.room or c.view != s.view:
+        raise ActionError(f"{c.tag} is not in the current view. You can only act on parts you can see.")
     if kinds and c.kind not in kinds:
         raise ActionError(f"{c.tag} is a {c.kind}; this needs a {' or '.join(kinds)}.")
     return c

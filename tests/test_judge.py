@@ -104,6 +104,7 @@ def test_observations_never_carry_ground_truth():
         for view in ("counter", "under_sink"):
             obs = ep.act("look", view=view)
             body = obs.text.split("\n", 1)[1]
+            assert obs.text.startswith("STATUS: ") and "\nRESULT: " in obs.text and "\nIN VIEW: " in obs.text
             assert "fault" not in body and "sludge" not in body and "crusted" not in body
             for f in obs.facts:
                 assert "fault" not in f

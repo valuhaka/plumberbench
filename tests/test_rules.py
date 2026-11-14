@@ -10,7 +10,10 @@ from plumberbench.world import BASIN_CAP, SPRAY_RATE
 
 
 def house(*faults, level=1):
-    return generate(0, level, faults=list(faults) or [{"type": "aerator_clog", "id": "aer.bathroom"}])
+    """A kitchen-centred test house, looking under the kitchen sink."""
+    s = generate(0, level, faults=list(faults) or [{"type": "aerator_clog", "id": "aer.bathroom"}])
+    s.view = "under_sink"
+    return s
 
 
 def tag(s, cid):
@@ -177,6 +180,20 @@ def test_impossible_actions_cost_nothing():
         with pytest.raises(ActionError):
             apply(s, tool, args)
     assert dataclasses.asdict(s) == before
+
+
+def test_only_parts_in_view_can_be_touched():
+    s = house({"type": "aerator_clog", "id": "aer.kitchen"})
+    before = dataclasses.asdict(s)
+    for tool, args in [("repair", {"tag": tag(s, "aer.kitchen"), "method": "clear"}),   # on the counter
+                       ("inspect", {"tag": tag(s, "aer.kitchen")}),
+                       ("set_valve", {"tag": tag(s, "stop.bathroom.cold"), "position": "closed"})]:
+        with pytest.raises(ActionError, match="not in the current view"):
+            apply(s, tool, args)
+    assert dataclasses.asdict(s) == before
+    apply(s, "look", {"view": "counter"})
+    apply(s, "repair", {"tag": tag(s, "aer.kitchen"), "method": "clear"})
+    assert s.comps["aer.kitchen"].fault is None
 
 
 def test_time_budget_ends_the_job():

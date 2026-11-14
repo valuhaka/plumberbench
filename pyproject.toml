@@ -8,6 +8,8 @@ dependencies = [
     "pillow>=10.1",
     "numpy",
     "fastmcp>=2.10",
+    "starlette",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]

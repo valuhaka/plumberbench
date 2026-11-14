@@ -364,7 +364,33 @@ def _utility(s: State) -> Scene:
     return sc
 
 
-def build(s: State) -> Scene:
+CLOSE_FOVY = 40.0
+
+
+def _close_up(sc: Scene, tag: str) -> Scene:
+    """Move the camera toward one tagged part, keeping the same line of sight.
+
+    The shape list is unchanged, so the close-up shares its GL context with the
+    full view; only the camera differs.
+    """
+    at, cam = sc.anchors[tag], sc.camera_pos
+    d = [a - c for a, c in zip(at, cam)]
+    dist = math.sqrt(sum(x * x for x in d))
+    near = min(max(0.28 * dist, 0.22), 0.55)
+    sc.camera_pos = tuple(a - x / dist * near for a, x in zip(at, d))
+    sc.camera_target = at
+    sc.fovy = CLOSE_FOVY
+    return sc
+
+
+def build(s: State, focus: str | None = None) -> Scene:
+    """The current view, or with `focus` (a tag in view) a close-up of that part."""
     if s.room in FIXTURES:
-        return _counter(s) if s.view == "counter" else _under_sink(s)
-    return _utility(s)
+        sc = _counter(s) if s.view == "counter" else _under_sink(s)
+    else:
+        sc = _utility(s)
+    if focus is not None:
+        if focus not in sc.anchors:
+            raise ValueError(f"{focus} is not in the current view")
+        _close_up(sc, focus)
+    return sc

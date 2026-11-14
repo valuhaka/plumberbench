@@ -32,9 +32,12 @@ class Seen:
         m = STATUS.search(text)
         self.room, self.view = (m.group(5), m.group(6)) if m else ("", "")
         self.facts = facts or []
+        self.in_view: list[str] = []
         for line in text.splitlines():
-            if line.startswith("FACTS "):
-                self.facts = json.loads(line[6:])
+            if line.startswith("FACTS: "):
+                self.facts = json.loads(line[7:])
+            elif line.startswith("IN VIEW: "):
+                self.in_view = line[9:].split()
 
     def all(self, type_: str, **match) -> list[dict]:
         return [f for f in self.facts if f.get("type") == type_
@@ -51,6 +54,8 @@ class Solver:
         self.facts_source = facts_source  # used only when responses carry no FACTS
         self.log = log or (lambda *_: None)
         self.room = "kitchen"
+        self.view = "counter"
+        self.where: dict[str, str] = {}   # tag -> the view it was seen in
         self.diag: set[str] = set()
         self.blocked: dict[str, bool | None] = {}
         self.clean: dict[str, bool] = {}
@@ -66,16 +71,21 @@ class Solver:
     # ---------------------------------------------------------- plumbing
 
     def do(self, tool: str, **args) -> Seen:
+        tag = args.get("tag")
+        if tag and self.where.get(tag, self.view) != self.view:
+            self.do("look", view=self.where[tag])  # parts can only be touched while in view
         text = self.call(tool, args)
         facts = None
-        if "FACTS " not in text and self.facts_source:
+        if "\nFACTS: " not in text and self.facts_source:
             facts = self.facts_source()
         seen = Seen(text, facts)
         self.log(tool, args, text.splitlines()[1] if "\n" in text else text)
         if seen.over:
             raise Done
         if seen.room:
-            self.room = seen.room
+            self.room, self.view = seen.room, seen.view
+            for t in seen.in_view:
+                self.where[t] = seen.view
         return seen
 
     def bucket_under(self, tag: str) -> None:

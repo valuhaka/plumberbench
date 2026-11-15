@@ -329,12 +329,14 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
 <nav class="site" aria-label="Site"><a class="brand" href="./">{icon("gnav")}<span>PlumberBench</span></a>
 <span class="links"><a href="{PLAY}">Play</a><a href="{DEMO}">Demo</a><a href="#results">Results</a><a href="{REPO}">Code</a></span></nav>
 <header class="hero">
+  <p class="eyebrow"><span class="live-dot"></span> A benchmark for agents that act in the real world</p>
   <h1>AI can solve any maths problem.<br><span>It can&rsquo;t fix your leaky pipes. Yet.</span></h1>
   <div class="versus">
     <a class="card proof" href="{IMO[3]}"><b>{IMO[0]}</b><span>{ESC(IMO[1])}</span></a>
     <figure class="card">{_img(leak["src"], leak["w"], leak["h"], "A supply joint dripping under a basin")}</figure>
   </div>
-  <div class="actions"><a class="button primary" href="{PLAY}">Play it</a><a class="button" href="{DEMO}">Watch a run</a></div>
+  <div class="actions"><a class="button primary" href="{PLAY}">Try the bench <span aria-hidden="true">&rarr;</span></a><a class="button" href="{DEMO}">Watch the run</a></div>
+  <p class="fine hero-note">A real house. Hidden faults. Your call.</p>
 </header>
 </section>
 
@@ -382,7 +384,8 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
 <section class="slide end" id="try">
 <div class="appicon small">{icon("gend")}</div>
 <h2>Try it</h2>
-<div class="actions"><a class="button primary" href="{PLAY}">Play it</a><a class="button" href="{DEMO}">Watch a run</a><a class="button" href="{REPO}">Code</a></div>
+<p class="try-copy">Take the tools for a spin. The hosted bench gives you a fresh house to diagnose and repair.</p>
+<div class="actions"><a class="button primary" href="{PLAY}">Start a house <span aria-hidden="true">&rarr;</span></a><a class="button" href="{DEMO}">Watch the run</a><a class="button" href="{REPO}">Explore the code</a></div>
 <p class="fine">Junction 2026 &middot; AfterQuery, Break the Agent</p>
 <p class="fine sources">Sources: {sources}</p>
 </section>
@@ -542,6 +545,77 @@ pre.cmd code { display: inline-block; font-size: 12.5px; padding: 8px 14px; back
   .flow .link > span { display: inline-block; transform: rotate(90deg); }
 }
 @media (max-width: 420px) { .brand span { display: none; } .links a { padding: 0 11px; } .reward .part { padding: 0 4px; font-size: 11px; } }
+
+/* Pitch deck: confident editorial type, warm paper, and clear ways into the product. */
+:root { --ink: #17282b; --muted: #5f706d; --line: #d5d9ce; --card: #fffef9; --accent: #15796f; }
+html, body { background: #f2f0e7; }
+body { font-size: 16px; }
+main { padding: 0 30px 56px; }
+.slide { max-width: 1160px; min-height: 84vh; padding: clamp(54px, 8vw, 104px) 0; gap: 26px; }
+.hero-slide { min-height: 100vh; padding-top: 18px; }
+.site { height: 58px; padding-left: 18px; border-radius: 999px; background: rgb(255 254 249 / .9); border-color: #d8dbd0; }
+.brand { letter-spacing: -.03em; }
+.brand svg { width: 29px; height: 29px; }
+.links a { padding: 0 20px; font-size: 14px; }
+.hero { padding: clamp(34px, 6vw, 66px) 0 0; gap: 24px; }
+.eyebrow { margin: 0; display: inline-flex; align-items: center; gap: 9px; color: #4d6b66; text-transform: uppercase; letter-spacing: .13em; font-size: 11px; font-weight: 750; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #36a883; box-shadow: 0 0 0 4px #d8eee1; }
+h1 { font-size: clamp(36px, 6.6vw, 76px); line-height: 1.03; letter-spacing: -.065em; }
+h1 span { color: #15796f; }
+.versus { width: min(100%, 1000px); gap: 18px; }
+.versus > .card { min-height: 300px; border-radius: 20px; border-color: #d8dbd0; box-shadow: 0 14px 36px rgb(28 48 41 / .06); }
+.versus figure { padding: 12px; }
+.versus figure img { height: 100%; object-fit: cover; border: 0; border-radius: 13px; }
+.proof { gap: 14px; background: #e5eee5; }
+.proof b { color: #15796f; font-size: clamp(60px, 9vw, 104px); letter-spacing: -.08em; }
+.proof span { max-width: 29ch; font-size: 16px; }
+.actions { gap: 12px; }
+.button { padding: 15px 24px; border-radius: 999px; font-size: 15px; font-weight: 650; transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
+.button:hover { transform: translateY(-2px); background: white; box-shadow: 0 8px 20px rgb(28 48 41 / .1); }
+.button.primary { background: #15796f; border-color: #15796f; box-shadow: 0 8px 18px rgb(21 121 111 / .18); }
+.button.primary:hover { background: #0e655d; }
+.hero-note { font-size: 13px; letter-spacing: .02em; }
+.slide h2 { font-size: clamp(30px, 4.5vw, 48px); letter-spacing: -.055em; }
+.tiles li, .three .card, .chart-wrap { border-color: #d8dbd0; border-radius: 18px; box-shadow: 0 12px 30px rgb(28 48 41 / .04); }
+.tiles li { padding: 25px 18px; }
+.tiles b { color: #15796f; letter-spacing: -.06em; }
+.three .card { padding: 14px; }
+img { border-color: #e4e4db; border-radius: 11px; }
+.strip { gap: 16px; }
+.strip li { padding: 10px; background: #fffef9; border: 1px solid #d8dbd0; border-radius: 16px; }
+.strip code { margin: 3px 0 5px; }
+.faults figure { padding: 7px; border: 1px solid #d8dbd0; border-radius: 14px; background: #fffef9; }
+.faults img { border-radius: 9px; }
+.flow > li:not(.link) { border-radius: 14px; padding: 14px 18px; }
+.flow > li.score { background: #deeee5; border-color: #b5d9c8; }
+.end { min-height: 70vh; margin-top: 20px; padding: clamp(48px, 7vw, 84px) 22px; border-radius: 28px; color: #f8f5e9; background: #183b38; }
+.end h2 { color: inherit; }
+.end .appicon { filter: none; }
+.end .fine { color: #bdcfbf; }
+.end .fine a { color: inherit; }
+.try-copy { max-width: 48ch; margin: 0; color: #d4e2d7; font-size: 19px; }
+.end .button { color: var(--ink); }
+.end .button.primary { color: white; background: #2c9a85; border-color: #2c9a85; }
+.end .button:hover { background: white; }
+.sources { margin-top: 8px; }
+@media (max-width: 860px) {
+  main { padding: 0 18px 32px; }
+  .slide { min-height: auto; padding: 58px 0; }
+  .hero-slide { min-height: 92vh; }
+  .versus > .card { min-height: 220px; }
+  .end { padding: 54px 20px; }
+}
+@media (max-width: 560px) {
+  .site { height: 50px; padding-left: 12px; }
+  .links a { padding: 0 9px; font-size: 12px; }
+  h1 { font-size: clamp(36px, 10vw, 52px); }
+  .versus { grid-template-columns: 1fr; }
+  .versus > .card { min-height: 190px; }
+  .actions { width: 100%; }
+  .actions .button { flex: 1 1 auto; text-align: center; padding: 14px 15px; }
+  .end { margin-left: -2px; margin-right: -2px; border-radius: 22px; }
+}
+@media (prefers-reduced-motion: reduce) { .button { transition: none; } .button:hover { transform: none; } }
 """
 
 JS = r"""

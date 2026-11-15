@@ -1,13 +1,16 @@
 """Difficulty ladder: reference solver and exploit baselines on every level.
 
-    python -m plumberbench.ladder --seeds 50
+    python -m plumberbench.ladder --seeds 50 [--json results/ladder.json]
 
-Prints one table. No rendering, so it runs in a few seconds.
+Prints one table. No rendering, so it runs in a few seconds. --json also writes
+every house's score per policy and level (the website plots them).
 """
 from __future__ import annotations
 
 import argparse
+import json
 import statistics
+from pathlib import Path
 
 from .baselines import POLICIES
 from .env import Episode
@@ -29,6 +32,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seeds", type=int, default=50)
     ap.add_argument("--verbose", action="store_true", help="list reference runs below 0.9")
+    ap.add_argument("--json", help="also write every score here")
     args = ap.parse_args()
 
     policies = {"reference solver": reference, **POLICIES}
@@ -36,11 +40,13 @@ def main() -> int:
     print("| Policy | " + " | ".join(f"Level {lv}" for lv in LEVELS) + " |")
     print("|---|" + "---|" * len(LEVELS))
     low = []
+    every: dict[str, dict[str, list[float]]] = {}
     for name, policy in policies.items():
         cells = []
         for level in LEVELS:
             results = [run_policy(policy, seed, level) for seed in range(args.seeds)]
             scores = [r["score"] for r in results]
+            every.setdefault(name, {})[str(level)] = scores
             cells.append(f"{statistics.mean(scores):.2f} ({min(scores):.2f})")
             if name == "reference solver":
                 low += [r for r in results if r["score"] < 0.9]
@@ -53,6 +59,9 @@ def main() -> int:
         dmg = statistics.mean(r["damage"] for r in results)
         print(f"  level {level}: {share:.0%} of time, mean damage {dmg:.1f}, "
               f"full repairs {sum(r['repair'] == 1 for r in results)}/{len(results)}")
+    if args.json:
+        Path(args.json).write_text(json.dumps({"seeds": args.seeds, "levels": list(LEVELS), "scores": every},
+                                              separators=(",", ":")) + "\n")
     if args.verbose:
         for r in low:
             print(r)

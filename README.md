@@ -2,7 +2,7 @@
 
 **A house with a hidden plumbing fault, where an agent has to look, test, diagnose and repair without flooding the kitchen.**
 
-An RL environment for AfterQuery's *Break the Agent* challenge at Junction 2026, run with Harbor and the OpenCode agent. The agent acts through MCP tools and sees each step as a rendered 3D picture with tagged parts. Faults are inside the pipes, and the tenant's complaint is often wrong, so the only way to find them is to act: run taps, watch drains, inspect joints, open things up, without making the house worse or running out of time.
+An RL environment for AfterQuery's *Break the Agent* challenge at Junction 2026, run with Harbor and the OpenCode agent. The pitch is at [plumberbench.org](https://plumberbench.org). The agent acts through MCP tools and sees each step as a rendered 3D picture with tagged parts. Faults are inside the pipes, and the tenant's complaint is often wrong, so the only way to find them is to act: run taps, watch drains, inspect joints, open things up, without making the house worse or running out of time.
 
 ## Quick start
 
@@ -15,7 +15,7 @@ uv run -m plumberbench.agent run --provider anthropic --model MODEL --levels 1 2
 
 | Command | What it does | Needs |
 |---|---|---|
-| `check.sh` | 102 tests and the difficulty ladder (`results/ladder.md`); skips are listed with reasons | nothing; Chrome for the screen-size test |
+| `check.sh` | 104 tests and the difficulty ladder (`results/ladder.md`); skips are listed with reasons | nothing; Chrome for the screen-size test |
 | `run-web.sh 3 2` | play house 3 at level 2 in the browser (`uv run -m plumberbench.play` for the terminal) | nothing |
 | `plumberbench.agent` | a model through the real MCP server, without Docker | an API key |
 | `judge_runs.sh` | the judged runs through Harbor: smoke test, reference, baselines, agent | Docker, Harbor, an API key |
@@ -104,13 +104,23 @@ uv run -m plumberbench.agent run --provider codex --levels 1 --seeds 0-1
 
 `anthropic` uses the Messages API with prompt caching. `openai` works with any OpenAI-compatible endpoint through Chat Completions; OpenAI's newer models call tools there only with reasoning off, so add `--reasoning-effort none` for them. `openai-agents` runs the OpenAI Agents SDK over the Responses API instead: reasoning stays on while it calls tools, pictures arrive inside the tool results, and each run shows up as a trace in the OpenAI dashboard. `codex` runs `codex exec` against the server, signed in however Codex is (a ChatGPT plan works, no API key); the shell, sub-agents, web search and your own Codex settings are switched off for the run, and PlumberBench's tools are approved without asking. Each run writes `runs/<provider>-<model>-<time>/`: per episode the server log, transcript, replay page and summary, plus a summary table.
 
+To put a run on the website, add it to its model's results, then rebuild:
+
+```bash
+uv run -m plumberbench.results add runs/codex-gpt-6-luna-20261115-031500 --label "GPT-6 Luna (Codex)"
+uv run -m plumberbench.results show
+uv run -m plumberbench.demo
+```
+
+`results/models/<label>.json` collects a model's jobs across runs (adding a run twice replaces it); `show` prints accuracy and spend per model.
+
 ## Playing it yourself
 
 `run-web.sh` opens a local page: the picture with clickable tags, move and tap controls, the output with a command line, a status box, Help with the full rules, and the result when the job ends. The terminal version (`uv run -m plumberbench.play`) takes the same commands: `help` lists them with their costs, `rules` prints the agent's instruction. Both front-ends run commands through one handler. `tests/test_views.py` requires the MCP server, the terminal and the browser to show identical text and pictures at every step, and the browser to say nothing about the task that the agent is not told.
 
 ## The website
 
-`site/` is a static site for Cloudflare Workers. `site/main.html` is the front page: the pitch header, with four frames from the demo run. `site/demo.html` is that run, a step-through replay of the reference plumber on house 7, level 3. `worker/index.js` serves `site/` and maps `/` to `main.html`.
+`site/` is a static site for Cloudflare Workers, live at [plumberbench.org](https://plumberbench.org). `site/main.html` is the pitch, one screen per section (arrow keys step through them when presenting): the question, what is tested, the six faults, every house's score by level and policy, where models break (accuracy and spend), how a run is scored. Every figure is drawn from the repo: frames from the demo run, pictures rendered from the simulator, scores from `results/ladder.json` and `results/models/`. `site/demo.html` is the demo run, a step-through replay of the reference plumber on house 7, level 3. `worker/index.js` serves `site/` and maps `/` to `main.html`.
 
 ```bash
 uv run -m plumberbench.demo
@@ -118,14 +128,14 @@ npx wrangler dev
 npx wrangler deploy
 ```
 
-`plumberbench.demo` rebuilds both pages from one run; `wrangler dev` previews at `localhost:8787`; `wrangler deploy` publishes (run `npx wrangler login` once first).
+`plumberbench.demo` rebuilds both pages and `site/img/`; `wrangler dev` previews at `localhost:8787`; `wrangler deploy` publishes (run `npx wrangler login` once first).
 
 ## Repository
 
 ```
 src/plumberbench/   world, sim, layout, generate (the house); scene, render (pictures); observe, env, server (MCP);
                     judge, solver, baselines; tasks (Harbor folders); play, web (people); agent, agents_sdk, codex_cli (local runner);
-                    replay, lander, demo (pages)
+                    replay, lander, demo, results, icon (pages)
 harbor/tasks/          the 80 Harbor tasks (generated by plumberbench.tasks; committed so harnesses can use --repo)
 harbor/smoke-vision/   harness check: do pictures reach the model, and stay fresh?
 registry.json          the datasets Harbor resolves with --repo
@@ -136,7 +146,8 @@ tests/                 rules, judge, layouts, rendering, server, Harbor tasks, r
 
 ## Status
 
-- **Verified:** all tests on Linux; on Apple silicon (Colima), the smoke test builds and passes in Harbor. Every task folder passes `harbor lint` and Harbor's task loader.
-- **Not yet:** the task oracle in Harbor after the artifacts fix; images on x86; any model run; a human playtest.
+- **Verified:** all tests on Linux; on Apple silicon (Colima), the smoke test builds and passes in Harbor. Every task folder passes `harbor lint`, and Harbor 0.26 resolves, downloads and dry-runs the datasets straight from GitHub (`--repo`).
+- **Model runs so far:** Codex on a ChatGPT plan (default model), houses 0-1 in both modes: level 1 0.90 (every fault fixed in 4 of 4), levels 3-4 0.51 (2 of 8); details in `results/models/`.
+- **Not yet:** the task oracle in Harbor after the oracle's switch to its own copy of the house; images on x86; a human playtest.
 
-Next: model runs per level and mode, to pick the judged level (reference above 0.9, agent between 0.3 and 0.6); the perception quiz; the pitch.
+Next: more models on levels 3-4; the perception quiz.

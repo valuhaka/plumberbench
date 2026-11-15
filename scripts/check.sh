@@ -21,4 +21,4 @@ fi
 
 run python3 -m pytest -q -rs
 mkdir -p results
-run python3 -m plumberbench.ladder --seeds "${SEEDS:-100}" | tee results/ladder.md
+run python3 -m plumberbench.ladder --seeds "${SEEDS:-100}" --json results/ladder.json | tee results/ladder.md

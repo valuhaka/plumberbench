@@ -59,6 +59,8 @@ BATH_FLOOR: RGBA = (0.76, 0.77, 0.78, 1)
 CHROME: RGBA = (0.80, 0.82, 0.86, 1)
 CHROME_NUT: RGBA = (0.62, 0.64, 0.68, 1)
 LEVER: RGBA = (0.08, 0.08, 0.09, 1)
+THREAD: RGBA = (0.62, 0.52, 0.26, 1)
+SCALE: RGBA = (0.95, 0.95, 0.88, 1)
 
 HIDDEN_Z = -50.0
 ANGLE = {"open": 0.0, "half": 45.0, "closed": 90.0}
@@ -83,6 +85,7 @@ class Scene:
     fovy: float = 45.0
     shapes: list[Shape] = field(default_factory=list)
     anchors: dict[str, Vec] = field(default_factory=dict)   # tag -> point it labels
+    close_from: dict[str, Vec] = field(default_factory=dict)  # tag -> camera for its close-up, if not the usual
     notes: dict[str, Vec] = field(default_factory=dict)     # small printed text, e.g. gauge numbers
 
     # -------------------------------------------------------------- builders
@@ -114,13 +117,39 @@ def _axis_offset(p: Vec, axis: str, d: float) -> Vec:
     return tuple(q)
 
 
-def _nut(sc: Scene, name: str, at: Vec, axis: str, r: float, rgba: RGBA, undone: bool, slide: float):
-    """A joint's nut, slid away along the pipe when undone, with the seam showing."""
-    centre = _axis_offset(at, axis, slide) if undone else at
+def _nut(sc: Scene, name: str, at: Vec, axis: str, r: float, rgba: RGBA, undone: bool, slide: float,
+         loose: bool = False):
+    """A joint's nut, slid away along the pipe when undone, with the seam showing. A loose nut
+    (drawn at level 5, where `inspect` no longer says it in words) is backed off a little,
+    with bare thread showing between it and the fitting."""
+    back = 0.016 * (1 if slide > 0 else -1)
+    centre = _axis_offset(at, axis, slide) if undone else _axis_offset(at, axis, back) if loose else at
     sc.add(name, "cylinder", rgba, (r,),
            fromto=(*_axis_offset(centre, axis, -0.013), *_axis_offset(centre, axis, 0.013)))
     sc.add(name + ".seam", "cylinder", DARK, (r - 0.004,),
            fromto=(*_axis_offset(at, axis, -0.005), *_axis_offset(at, axis, 0.005)), show=undone)
+    bare = loose and not undone  # always in the shape list, so the GL model is reused
+    sc.add(name + ".thread", "cylinder", THREAD, (r * 0.78,),
+           fromto=(*_axis_offset(at, axis, -0.013), *_axis_offset(at, axis, 0.013)), show=bare)
+    for k in range(4):
+        ring = _axis_offset(at, axis, -0.011 + k * 0.0075)
+        sc.add(f"{name}.thread{k}", "cylinder", DARK, (r * 0.80,),
+               fromto=(*_axis_offset(ring, axis, -0.0012), *_axis_offset(ring, axis, 0.0012)), show=bare)
+
+
+def _nut_at(at: Vec, axis: str, slide: float) -> Vec:
+    """Where a loose nut drawn backed off sits (the label goes on the nut, not the thread)."""
+    return _axis_offset(at, axis, 0.016 * (1 if slide > 0 else -1))
+
+
+def _scale(sc: Scene, s: State, aer, tip: Vec, r: float):
+    """Level 5: in the close-up of a blocked aerator it is crusted with white scale, since
+    `inspect` no longer says so in words."""
+    show = s.level >= 5 and s.inspected == aer.id and bool(aer.fault)
+    x, y, z = tip
+    sc.add("aerator.scale", "cylinder", SCALE, (r * 1.18,), fromto=(x, y, z - 0.004, x, y, z + 0.003), show=show)
+    for k, (dx, dy) in enumerate(((0.6, 0.2), (-0.5, 0.5), (0.1, -0.7), (-0.4, -0.4))):
+        sc.add(f"aerator.scale{k}", "sphere", SCALE, (r * 0.32,), pos=(x + dx * r, y + dy * r, z - 0.006), show=show)
 
 
 def _lever(sc: Scene, name: str, stem: Vec, pos: str, toward: float = 1.0):
@@ -258,6 +287,7 @@ def _counter_kitchen(s: State) -> Scene:
     sc.pipe("tap.tip", (0.08, 0.06, 1.12), (0.08, 0.06, 1.09), 0.014, STEEL)
     aer = s.comps[f"aer.{fx}"]
     sc.add("aerator", "cylinder", BRASS, (0.016,), fromto=(0.08, 0.06, 1.072, 0.08, 0.06, 1.088))
+    _scale(sc, s, aer, (0.08, 0.06, 1.072), 0.016)
     sc.anchors[aer.tag] = (0.08, 0.06, 1.08)
     sc.pipe("handle.hot", (-0.13, 0.27, 0.90), (-0.13, 0.27, 0.96), 0.012, HOT)
     sc.pipe("handle.cold", (0.13, 0.27, 0.90), (0.13, 0.27, 0.96), 0.012, COLD)
@@ -300,6 +330,7 @@ def _counter_bathroom(s: State) -> Scene:
     sc.pipe("tap.spout", (0, 0.25, 1.00), (0, 0.10, 0.978), 0.012, STEEL)
     aer = s.comps[f"aer.{fx}"]
     sc.add("aerator", "cylinder", BRASS, (0.013,), fromto=(0, 0.10, 0.958, 0, 0.10, 0.972))
+    _scale(sc, s, aer, (0, 0.10, 0.958), 0.013)
     sc.anchors[aer.tag] = (0, 0.10, 0.965)
     for side, x, rgba in (("hot", -0.10, HOT), ("cold", 0.10, COLD)):
         sc.pipe(f"handle.{side}.stem", (x, 0.25, 0.90), (x, 0.25, 0.94), 0.009, STEEL)
@@ -333,10 +364,17 @@ def _under_sink(s: State) -> Scene:
         sc.pipe(f"{side}.hose", *p["hose"], pipes.R_HOSE, HOSE)
         for cid, at, axis, slide in ((jin, p["jin"], "y", -0.05), (jhose, p["jhose"], "z", 0.05)):
             c = s.comps[cid]
-            _nut(sc, cid, at, axis, pipes.R_NUT, BRASS, c.open, slide)
+            shown = s.level >= 5 and s.inspected == cid  # level 5: found by looking closely
+            loose = shown and c.fault == "loose"
+            _nut(sc, cid, at, axis, pipes.R_NUT, BRASS, c.open, slide, loose=loose)
             _drips(sc, s, cid, at)
             _outflow(sc, s, cid, at, spray=True)
-            sc.anchors[c.tag] = at
+            sc.anchors[c.tag] = _nut_at(at, axis, slide) if loose else at
+            if shown and cid == jin:  # seen end-on from the front: look at it from the side instead
+                other = pipes.supply(lay, "cold" if side == "hot" else "hot")["jin"]
+                # Away from the other supply if it comes out on the same side, else from the middle.
+                way = (1 if at[0] > other[0] else -1) if abs(other[0] - at[0]) < 0.25 else (1 if at[0] < 0 else -1)
+                sc.close_from[c.tag] = (max(-0.42, min(0.42, at[0] + 0.20 * way)), at[1] - 0.10, at[2] + 0.06)
             spots[cid] = at
         _valve(sc, s, stop, p["valve"], 0.010, p["toward"])
 
@@ -361,10 +399,11 @@ def _under_sink(s: State) -> Scene:
     sc.add("trap.hole2", "cylinder", DARK, (0.017, 0.002), pos=q["hole_out"], show=t.open)
     for cid, at, slide in ((jtail, q["jtail"], -0.05), (jarm, q["jarm"], 0.05)):
         c = s.comps[cid]
-        _nut(sc, cid, at, "z", pipes.R_SLIP, nut_rgba, c.open, slide)
+        loose = s.level >= 5 and s.inspected == cid and c.fault == "loose"
+        _nut(sc, cid, at, "z", pipes.R_SLIP, nut_rgba, c.open, slide, loose=loose)
         _drips(sc, s, cid, at)
         _outflow(sc, s, cid, at, spray=False)
-        sc.anchors[c.tag] = at
+        sc.anchors[c.tag] = _nut_at(at, "z", slide) if loose else at
         spots[cid] = at
     sc.anchors[t.tag] = (-0.30, -0.24, 0.04) if t.open else q["trap_mid"]
     spots[trap] = q["trap_mid"]
@@ -454,6 +493,9 @@ def _close_up(sc: Scene, tag: str) -> Scene:
     full view; only the camera differs.
     """
     at, cam = sc.anchors[tag], sc.camera_pos
+    if tag in sc.close_from:  # a part that the line of sight shows end-on: seen from the side
+        sc.camera_pos, sc.camera_target, sc.fovy = sc.close_from[tag], at, CLOSE_FOVY
+        return sc
     d = [a - c for a, c in zip(at, cam)]
     dist = math.sqrt(sum(x * x for x in d))
     near = min(max(0.28 * dist, 0.22), 0.55)

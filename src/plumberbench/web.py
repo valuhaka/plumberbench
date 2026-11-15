@@ -303,7 +303,7 @@ label.check span { color: var(--muted); font-size: 12.5px; }
 <div class="top">
 <header class="topbar"><a class="brand" href="https://plumberbench.org/">{ICON}<span>PlumberBench</span></a>
   <nav class="links" aria-label="Game"><span class="levels" id="levels" hidden>Level
-    <a href="?level=1">1</a><a href="?level=2">2</a><a href="?level=3">3</a><a href="?level=4">4</a></span>
+    <a href="?level=1">1</a><a href="?level=2">2</a><a href="?level=3">3</a><a href="?level=4">4</a><a href="?level=5">5</a></span>
     <a href="?new=1" id="newhouse" hidden>New house</a><button id="help">Help</button></nav></header>
 
 <section class="job" aria-live="polite">

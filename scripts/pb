@@ -31,7 +31,10 @@ print(reply["text"])
 if reply["image"]:
     pic = job / f"pic_{n + 1:03d}.jpg"
     pic.write_bytes(base64.b64decode(reply["image"]))
+    (job / "last_picture.txt").write_text(str(pic))
     print(f"PICTURE: {pic}")
+elif (job / "last_picture.txt").exists() and "PICTURE: unchanged" in reply["text"]:
+    print(f"PICTURE (unchanged, the last one sent): {(job / 'last_picture.txt').read_text()}")
 if reply["result"]:
     (job / "result.json").write_text(json.dumps(reply["result"], indent=2))
     print("The job is over. Result:\n" + json.dumps({k: reply["result"][k] for k in ("score", "faults_fixed", "faults_total", "damage", "diagnosis_correct") if k in reply["result"]}))

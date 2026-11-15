@@ -7,8 +7,9 @@ Time moves in ticks. Each tick, in this order:
   1. supply: every faulty supply joint that is under pressure lets out 1 unit;
      an undone joint under pressure sprays SPRAY_RATE units
   2. taps: each running tap side with flow adds 1 unit to its basin
-  3. drains: each basin sends up to DRAIN_RATE units down its drain; the water
-     stops at the first blockage, or comes out at the first opening
+  3. drains: each basin sends up to DRAIN_RATE units down its drain (SLOW_RATE
+     through a partly blocked trap); the water stops at the first blockage, or
+     comes out at the first opening
   4. overflow: anything above BASIN_CAP goes on the floor
 """
 from __future__ import annotations
@@ -22,6 +23,7 @@ from .world import (
     DRAIN_RATE,
     FIXTURES,
     PRESSURE,
+    SLOW_RATE,
     ROOMS,
     SIDES,
     SPRAY_RATE,
@@ -71,6 +73,10 @@ def supply(s: State, emit: bool = False) -> dict[tuple[str, str], int]:
                     p = min(p, PRESSURE[c.pos])
                     continue
                 if p > 0 and emit:
+                    if c.late and not c.open:
+                        c.late -= 1  # a weak washer under pressure, until it gives
+                        if c.late == 0:
+                            c.fault = "worn"
                     if c.open:
                         _emit(s, c, SPRAY_RATE, catchable=False)
                     elif c.fault:
@@ -90,6 +96,7 @@ def _drain(s: State, fx: str) -> None:
     leaky = []          # closed faulty joints that have water at them
     outlet = None       # where the water leaves the pipework, if it does
     blocked = False
+    rate = DRAIN_RATE
     for cid in drain_chain(fx):
         c = s.comps[cid]
         if c.open:
@@ -98,11 +105,13 @@ def _drain(s: State, fx: str) -> None:
         if c.kind == "joint":
             if c.fault:
                 leaky.append(c)
+        elif c.fault == "partial":
+            rate = SLOW_RATE
         elif c.fault:   # clogged trap, or clogged branch behind the cleanout
             blocked = True
             break
     if not blocked:
-        moved = min(level, DRAIN_RATE)
+        moved = min(level, rate)
         s.basin[fx] -= moved
         if outlet is not None:
             _emit(s, outlet, moved)
@@ -179,7 +188,7 @@ def _opened(c: Comp) -> str:
 
 
 def _inside(c: Comp) -> str:
-    return "packed with sludge" if c.fault else "clear inside"
+    return {"partial": "partly blocked with sludge", None: "clear inside"}.get(c.fault, "packed with sludge")
 
 
 # -------------------------------------------------------------- actions
@@ -207,6 +216,7 @@ def _look(s, view):
 def _inspect(s, tag):
     c = _here(s, tag)
     advance(s, COST["inspect"])
+    s.inspected = c.id
     if c.kind == "valve":
         word = {"open": "fully open", "half": "half open", "closed": "closed"}[c.pos]
         return f"{c.tag}: the valve is {word}."
@@ -253,6 +263,8 @@ def _set_valve(s, tag, position):
         raise ActionError("position must be open, half or closed.")
     if c.pos == position:
         raise ActionError(f"{c.tag} is already {position}.")
+    if c.role == "main" and s.level >= 5:
+        raise ActionError(f"{c.tag}, the main valve, is seized and will not turn.")
     c.pos = position
     advance(s, COST["set_valve"])
     return f"You turned {c.tag} to {position}."
@@ -276,6 +288,10 @@ def _open_joint(s, tag):
         _emit(s, c, 1)  # the water that sits in the bend
     advance(s, COST["open_joint"])
     if c.kind == "joint":
+        if s.level >= 5:  # level 5: the washer you can now see
+            washer = ("worn" if c.fault == "worn" else
+                      "weak: it would have started leaking once under pressure" if c.late else "sound")
+            return f"You undid {c.tag}. Its washer is {washer}."
         return f"You undid {c.tag}."
     return f"You {'removed' if c.kind == 'trap' else 'opened'} {c.tag}. It is {_inside(c)}."
 
@@ -291,7 +307,7 @@ def _close_joint(s, tag):
     s.washers -= 1
     c.open = False
     if c.kind == "joint":
-        c.fault = None  # a joint refitted on a new washer is sound
+        c.fault, c.late = None, 0  # a joint refitted on a new washer is sound
     return f"You refitted {c.tag} with a new washer."
 
 
@@ -318,7 +334,7 @@ def _repair(s, tag, method):
             c.fault = None
             return f"You tightened {c.tag}. The nut took a full turn and is now snug."
         if c.fault is None:
-            c.fault = "worn"  # forcing a tight nut crushes the washer
+            c.fault, c.late = "worn", 0  # forcing a tight nut crushes the washer
             return f"{c.tag} was already tight. You forced it and felt the washer give."
         return f"{c.tag} was already tight. Forcing it changed nothing."
     c.fault = None
@@ -380,6 +396,7 @@ def apply(s: State, tool: str, args: dict) -> str:
     if s.done:
         raise ActionError("The job is over.")
     before = s.tick
+    s.inspected = None
     try:
         if tool not in ACTIONS:
             raise ActionError(f"Unknown tool {tool}.")

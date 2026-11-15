@@ -189,12 +189,30 @@ print(json.dumps({{k: result[k] for k in ("score", "repair", "faults_fixed", "fa
                                          "left_worse")}}, indent=2))
 '''
 
-DIFFICULTY = {1: "easy", 2: "medium", 3: "hard", 4: "hard"}
+DIFFICULTY = {1: "easy", 2: "easy", 3: "medium", 4: "medium", 5: "hard"}
+
+# Level 5's extra rules, added to the list under "How water behaves".
+LEVEL5_NOTE = """
+
+## Level 5
+
+This house follows every rule above, and these as well.
+
+- **The tenant** says only where the trouble seems to be, and may name the wrong room. Before you came, the tenant mopped the floor and bailed out the basins, so only old dry stains are left to see.
+- **The number of faults** differs from house to house; the time budget and the washers do not.
+- **Sounds:** `YOU HEAR` reports spraying; at this level a drip makes no sound, and shows only in the picture. Damage still rises in `STATUS` for water anywhere.
+- **Weak washers:** a joint that had no pressure when you arrived (it is past a valve you found closed) may have a weak washer. It holds at first, then starts dripping after 3 to 10 ticks under pressure, counted only while it is under pressure. A joint that was under pressure when you arrived never does this. Undoing a joint tells you the state of its washer (sound, worn or weak); refitting it puts in a new one. A weak washer counts as a `supply_leak`.
+- **Slow drains:** each running side of a tap, full or weak, adds 1 unit per tick to its basin. A partly blocked trap drains 1 unit per tick instead of 2, so its basin fills only with hot and cold both running. Report it as `trap_clog` and repair it like a blocked trap.
+- **The main valve is seized** and will not turn. To take the pressure off a wall-side joint, close the branch valve that feeds it; you may close more than one if you do not know which, or the heater valve for a hot joint. Reopen every valve you closed.
+- **`inspect` shows rather than tells** for a joint, a valve or an aerator: the close-up picture shows what you found. A loose nut is backed off, with bare thread (dark rings) between it and the fitting; a tight nut sits flush against it. A blocked aerator is crusted with white scale. Tapping the cleanout is still a sound, and an opened part is still described. A wall-side joint's close-up is taken from the side.
+- **Forcing a tight nut** on a sound joint crushes its washer; on a joint that already leaks through a worn washer it changes nothing.
+- **Washers:** every `close_joint` uses one, on a trap or the cleanout plug too. With none left, an opened part cannot be refitted. Removing a trap spills the 1 unit that sits in its bend."""
 
 
-def instruction_text(facts: bool) -> str:
-    """The task instruction the agent gets, for facts or pictures-only mode."""
+def instruction_text(facts: bool, level: int | None = None) -> str:
+    """The task instruction the agent gets, for facts or pictures-only mode, at this level."""
     text = (PKG / "instruction.md").read_text()
+    text = text.replace("{level_note}", LEVEL5_NOTE if (level or 0) >= 5 else "")
     text = text.replace("{facts_note}", FACTS_NOTE if facts else "")
     return text.replace("{diagnoses}", "\n".join(f"- `{d}`: {DIAGNOSIS_TEXT[d]}." for d in DIAGNOSES))
 
@@ -213,7 +231,7 @@ def write_task(root: Path, level: int, seed: int, mode: str, name: str | None = 
     (d / "tests" / "plumberbench").mkdir(parents=True)
 
     facts = mode == "facts"
-    (d / "instruction.md").write_text(instruction_text(facts))
+    (d / "instruction.md").write_text(instruction_text(facts, level))
     (d / "task.toml").write_text(TASK_TOML.format(name=name, level=level, seed=seed, mode=mode,
                                                   difficulty=DIFFICULTY[level]))
 
@@ -264,8 +282,11 @@ def registry(names: list[str], tasks_dir: str = "harbor/tasks") -> list[dict]:
     count = {m: sum(n.endswith("-" + m) for n in names) for m in ("facts", "vision")}
     return [
         {"name": "plumberbench", "version": REGISTRY_VERSION,
-         "description": f"All {len(names)} houses: levels 1-4, ten seeds each, with FACTS and pictures only.",
+         "description": f"All {len(names)} houses: levels 1-5, ten seeds each, with FACTS and pictures only.",
          "tasks": entries(lambda n: True)},
+        {"name": "plumberbench-hard", "version": REGISTRY_VERSION,
+         "description": "The ten level 5 houses, pictures only: the quick test that separates frontier agents.",
+         "tasks": entries(lambda n: n.startswith("l5-") and n.endswith("-vision"))},
         {"name": "plumberbench-vision", "version": REGISTRY_VERSION,
          "description": f"The {count['vision']} pictures-only houses.", "tasks": entries(lambda n: n.endswith("-vision"))},
         {"name": "plumberbench-facts", "version": REGISTRY_VERSION,
@@ -319,7 +340,7 @@ def write_private(out: Path, levels, n: int, modes) -> int:
     seeds = {}
     for level in levels:
         for i in range(n):
-            seed = 10**8 + secrets.randbelow(9 * 10**8)
+            seed = secrets.randbits(64)
             for mode in modes:
                 name = f"l{level}-p{i:02d}-{mode}"
                 write_task(out, level, seed, mode, name=name)

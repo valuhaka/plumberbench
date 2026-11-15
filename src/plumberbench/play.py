@@ -131,7 +131,7 @@ def handle(ep: Episode, line: str) -> Reply:
     if line == "help":
         return Reply(HELP, result=over)
     if line == "rules":
-        return Reply(instruction_text(ep.with_facts), result=over)
+        return Reply(instruction_text(ep.with_facts, ep.state.level), result=over)
     if line == "score":
         if over is None:
             return Reply("Finish the job first.")

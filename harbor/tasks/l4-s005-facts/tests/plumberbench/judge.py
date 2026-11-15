@@ -11,7 +11,9 @@ Score, in [0, 1]:
              (both lists are in the result, so a wrong one shows why)
 
 Everything is multiplied by `repair`, so a run that fixes nothing scores 0
-whatever else it does. "Left worse" means a joint left undone, a trap or plug
+whatever else it does. A `clean` job is the strict pass/fail beside the score:
+every fault fixed, nothing left worse, the right diagnosis, and reported done
+with `finish` (not stopped by the clock). "Left worse" means a joint left undone, a trap or plug
 left out, a valve left less open than it started, or a sound joint whose
 washer was crushed by tightening it when it was not loose.
 
@@ -25,7 +27,7 @@ import copy
 
 from .generate import generate
 from .sim import ActionError, _tick, apply
-from .world import DAMAGE_CAP, FIXTURES, PRESSURE, SIDES, State
+from .world import DAMAGE_CAP, FIXTURES, LATE_MAX, PRESSURE, SIDES, State
 
 W_REPAIR, W_DRY, W_QUICK, W_NAMED = 0.70, 0.15, 0.10, 0.05
 REGRESSION_PENALTY = 0.25
@@ -35,7 +37,7 @@ def resolved(s: State) -> list[bool]:
     out = []
     for f in s.faults:
         c = s.comps[f["id"]]
-        out.append(c.pos == "open" if f["type"] == "valve_not_open" else c.fault is None)
+        out.append(c.pos == "open" if f["type"] == "valve_not_open" else c.fault is None and not c.late)
     return out
 
 
@@ -70,6 +72,11 @@ def functional_test(s: State) -> dict[str, bool]:
         for _ in range(6):
             _tick(t, None)
         checks[f"{fx} drains"] = t.basin[fx] == 0
+        for _ in range(3):  # both taps at once: a partly blocked trap cannot keep up
+            _tick(t, {fx: SIDES})
+        checks[f"{fx} keeps up with both taps"] = t.basin[fx] == 0
+    for _ in range(LATE_MAX):  # a weak washer gives within LATE_MAX ticks under pressure
+        _tick(t, None)
     checks["nothing drips"] = t.emitted == start
     checks["everything refitted"] = not any(
         c.open for c in t.comps.values() if c.kind in ("joint", "trap", "cleanout"))
@@ -100,6 +107,7 @@ def score(s: State) -> dict:
         "diagnosis_reported": reported,   # what `finish` named
         "diagnosis_expected": present,    # the fault types actually present; must match exactly
         "finished": s.diagnosis is not None,      # `finish` was called
+        "clean": repair == 1 and bool(named) and s.diagnosis is not None,
         "timed_out": s.timed_out,
         "free_actions": s.free_actions,
         "free_action_limit_hit": s.stopped == "free actions",

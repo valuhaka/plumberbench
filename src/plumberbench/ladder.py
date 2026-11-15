@@ -41,16 +41,24 @@ def main() -> int:
     print("|---|" + "---|" * len(LEVELS))
     low = []
     every: dict[str, dict[str, list[float]]] = {}
+    clean: dict[str, dict[str, int]] = {}
     for name, policy in policies.items():
         cells = []
         for level in LEVELS:
             results = [run_policy(policy, seed, level) for seed in range(args.seeds)]
             scores = [r["score"] for r in results]
             every.setdefault(name, {})[str(level)] = scores
+            clean.setdefault(name, {})[str(level)] = sum(r["clean"] for r in results)
             cells.append(f"{statistics.mean(scores):.2f} ({min(scores):.2f})")
             if name == "reference solver":
                 low += [r for r in results if r["score"] < 0.9]
         print(f"| {name} | " + " | ".join(cells) + " |")
+
+    print(f"\nClean jobs (every fault fixed, nothing left worse, named right, reported done) of {args.seeds}:\n")
+    print("| Policy | " + " | ".join(f"Level {lv}" for lv in LEVELS) + " |")
+    print("|---|" + "---|" * len(LEVELS))
+    for name in policies:
+        print(f"| {name} | " + " | ".join(str(clean[name][str(lv)]) for lv in LEVELS) + " |")
 
     print("\nReference solver, time used as a share of the budget:")
     for level in LEVELS:
@@ -60,7 +68,7 @@ def main() -> int:
         print(f"  level {level}: {share:.0%} of time, mean damage {dmg:.1f}, "
               f"full repairs {sum(r['repair'] == 1 for r in results)}/{len(results)}")
     if args.json:
-        Path(args.json).write_text(json.dumps({"seeds": args.seeds, "levels": list(LEVELS), "scores": every},
+        Path(args.json).write_text(json.dumps({"seeds": args.seeds, "levels": list(LEVELS), "scores": every, "clean": clean},
                                               separators=(",", ":")) + "\n")
     if args.verbose:
         for r in low:

@@ -35,7 +35,7 @@ def fake_results(tmp_path):
     scores = {p: {str(lv): ([0.95, 0.9] if p == "reference solver" else [0.4, 0.0] if "never" in p else [0.0, 0.0])
                   for lv in (1, 2, 3, 4)} for p in policies}
     (res / "ladder.json").write_text(json.dumps({"seeds": 2, "levels": [1, 2, 3, 4], "scores": scores}))
-    rows = [{"level": 3, "seed": s, "mode": "facts", "score": sc, "repair": rep, "faults": f, "damage": 0,
+    rows = [{"level": 3, "seed": s, "mode": "pictures only", "score": sc, "repair": rep, "faults": f, "damage": 0,
              "time": "30/55", "free_actions": 3, "diagnosis_correct": rep == 1, "finished": True, "stop": "job over",
              "tool_calls": 20, "seconds": 50.0, "usage": {"input": 1000, "output": 100, "cache_read": 9000}}
             for s, sc, rep, f in ((0, 0.93, 1.0, "2/2"), (1, 0.4, 0.5, "1/2"))]
@@ -61,7 +61,7 @@ def test_the_page_is_built_from_the_repo_data_with_every_picture(tmp_path):
     assert 'id="results"' in page and "Model M" in page
     for _, _, _, url in lander.FACTS + [lander.IMO]:
         assert f'href="{url}"' in page  # every motivating number links to its source
-    assert "<td>1 of 2</td><td>1</td>" in page  # every fault fixed in 1 of 2 houses; 1 done with a fault left
+    assert "1/2 clean" in page and "<td>1 of 2</td>" in page  # one clean job; one reported done with a fault left
 
 
 def test_a_changed_run_fails_the_build(tmp_path):
@@ -96,15 +96,14 @@ def test_the_site_shows_the_committed_results():
     """The numbers on the committed page are the committed data's."""
     page = (ROOT / "site" / "main.html").read_text()
     _, models = lander.load_results(ROOT / "results")
-    for m, rows in lander.on_shared(models):
+    for m, rows in lander.pictures_jobs(models):
         assert m["label"] in page
         for lv in {r["level"] for r in rows}:
-            mean = sum(r["score"] for r in rows if r["level"] == lv) / sum(1 for r in rows if r["level"] == lv)
-            assert f"<td>{mean:.2f}</td>" in page
+            at = [r for r in rows if r["level"] == lv]
+            assert f"{sum(map(lander.is_clean, at))}/{len(at)} clean" in page
 
 
-def test_the_chart_compares_only_houses_every_model_played():
-    a = {"label": "A", "rows": [{"level": 1, "seed": 0, "mode": "m", "score": 1.0}, {"level": 1, "seed": 1, "mode": "m", "score": 0.0}]}
-    b = {"label": "B", "rows": [{"level": 1, "seed": 0, "mode": "m", "score": 0.5}]}
-    assert lander.shared_houses([a, b]) == {(1, 0, "m")}
-    assert [len(rows) for _, rows in lander.on_shared([a, b])] == [1, 1]
+def test_the_chart_shows_pictures_only_jobs():
+    a = {"label": "A", "rows": [{"level": 1, "seed": 0, "mode": "pictures only", "score": 1.0},
+                                {"level": 1, "seed": 0, "mode": "facts", "score": 0.0}]}
+    assert [len(rows) for _, rows in lander.pictures_jobs([a])] == [1]

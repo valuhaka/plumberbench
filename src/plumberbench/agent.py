@@ -368,7 +368,7 @@ def episode(provider, seed: int, level: int, facts: bool, out: Path, max_turns: 
     proc, url = start_plumberbench(seed, level, facts, out)
     started = time.time()
     try:
-        run = asyncio.run(play(provider, url, instruction_text(facts), max_turns, out / "transcript.jsonl"))
+        run = asyncio.run(play(provider, url, instruction_text(facts, level), max_turns, out / "transcript.jsonl"))
     finally:
         proc.kill()
     result = json.loads((out / "server" / "result.json").read_text())

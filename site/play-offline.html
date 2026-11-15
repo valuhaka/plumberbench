@@ -79,6 +79,7 @@ h1 span { color: #2a6fcb; }
 .legend li { display: inline-flex; align-items: center; gap: 7px; }
 .key { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .key.line { width: 16px; height: 2px; border-radius: 0; }
+.key.ring { box-shadow: inset 0 0 0 2px #3d434b; }
 .key.line.dash { background: repeating-linear-gradient(90deg, #9a9a9a 0 5px, transparent 5px 8px) !important; }
 .reward + .legend .key { border-radius: 3px; }
 .chart-wrap { width: 100%; overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 8px 8px; }
@@ -89,6 +90,8 @@ h1 span { color: #2a6fcb; }
 .chart path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .chart .model { stroke-width: 2.5; }
 .chart .base { stroke-width: 1.5; }
+.chart .mean { stroke-width: 2.5; stroke-linecap: round; }
+.chart .sep { stroke: #d9dbde; stroke-width: 1; }
 .chart .dash { stroke-dasharray: 6 5; }
 .chart .hit { fill: transparent; }
 .chart .hit:hover, .chart .hit:focus { fill: rgba(42,111,203,.10); outline: none; }
@@ -99,7 +102,7 @@ h1 span { color: #2a6fcb; }
 .models table { border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .models th, .models td { padding: 6px 12px; text-align: left; border-top: 1px solid #ececec; white-space: nowrap; }
 .models thead th { color: var(--muted); font-weight: 400; border-top: 0; }
-.models .dim { color: var(--muted); }
+.models .dim, .models td span { color: var(--muted); }
 
 /* harness */
 .flow { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }

@@ -87,6 +87,8 @@ def stats(rows: list[dict]) -> dict:
         "score": statistics.mean(r["score"] for r in rows) if n else None,
         "fixed_all": sum(1 for r in rows if r.get("repair", 0) == 1 or r["faults"].split("/")[0] == r["faults"].split("/")[1]),
         "diagnosis_right": sum(1 for r in rows if r["diagnosis_correct"]),
+        # every fault fixed, nothing left worse (repair is exactly 1), named right, reported done
+        "clean": sum(1 for r in rows if r.get("repair") == 1 and r["diagnosis_correct"] and r.get("finished")),
         "tokens_read": statistics.mean(read) if use else None,
         "cached_share": cached / sum(read) if sum(read) else None,
         "tokens_written": statistics.mean(u.get("output", 0) for u in use) if use else None,

@@ -22,14 +22,18 @@ def facts(s: State) -> list[dict]:
         elif c.kind == "joint":
             f.update(line=c.line, where=c.role, state="undone" if c.open else "closed",
                      wet=is_wet(s, c), puddle=c.puddle, stain=c.stain)
+            if s.level >= 5 and s.inspected == c.id and not c.open:  # what the close-up draws
+                f["nut"] = "backed off" if c.fault == "loose" else "home"
         elif c.kind == "trap":
             f.update(state="removed" if c.open else "installed", puddle=c.puddle)
             if c.open:
-                f["inside"] = "blocked" if c.fault else "clear"
+                f["inside"] = {"partial": "partly blocked", None: "clear"}.get(c.fault, "blocked")
         elif c.kind == "cleanout":
             f.update(state="open" if c.open else "closed", puddle=c.puddle)
             if c.open:
                 f["inside"] = "blocked" if c.fault else "clear"
+        elif c.kind == "aerator" and s.level >= 5 and s.inspected == c.id:  # what the close-up draws
+            f["scale"] = bool(c.fault)
         out.append(f)
     if s.room in FIXTURES and s.view == "counter":
         out.append({"type": "basin", "level": s.basin[s.room], "floor_water": s.overflow[s.room]})
@@ -49,9 +53,19 @@ def sounds(s: State) -> list[str]:
         heard.append("Water is spraying from an undone joint " + ("right here." if here else "somewhere in the house."))
     dripping = [c for c in s.comps.values()
                 if c.room == s.room and c.kind == "joint" and not c.open and is_wet(s, c)]
-    if dripping:
+    if dripping and s.level < 5:  # at level 5 only the picture shows a drip
         heard.append("Dripping in this room.")
     return heard
+
+
+def close_look(s: State, tag, message: str) -> str:
+    """Level 5, pictures only: what `inspect` finds on a joint, valve or aerator is in the
+    close-up picture (a backed-off nut, the lever, white scale), not in words. Sounds and
+    the inside of an opened part are still told."""
+    c = s.by_tag(tag)
+    if c is not None and c.kind in ("joint", "valve", "aerator") and not c.open:
+        return f"You looked closely at {c.tag}. The close-up shows what you found."
+    return message
 
 
 def status(s: State) -> str:

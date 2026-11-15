@@ -29,8 +29,10 @@ def test_reference_solver_repairs_every_house(level):
     assert all(r["repair"] == 1.0 for r in results)
     assert all(all(r["functional_test"].values()) for r in results)
     assert all(r["diagnosis_correct"] for r in results)
-    assert min(r["score"] for r in results) > 0.85
+    # At level 5 a late washer drips for a while before anyone can see it, even for the reference.
+    assert min(r["score"] for r in results) > (0.75 if level >= 5 else 0.85)
     assert sum(r["score"] for r in results) / len(results) > 0.9
+    assert all(r["clean"] for r in results)
 
 
 @pytest.mark.parametrize("name", ["do nothing", "finish at once", "name every diagnosis",
@@ -42,9 +44,16 @@ def test_exploits_score_zero(name):
 
 @pytest.mark.parametrize("level", LEVELS)
 def test_blind_servicing_is_well_below_the_reference(level):
-    blind = [play(baselines.service_without_testing, s, level).result()["score"] for s in SEEDS]
-    ref = [play(reference, s, level).result()["score"] for s in SEEDS]
-    assert sum(blind) / len(blind) < sum(ref) / len(ref) - 0.3
+    blind = [play(baselines.service_without_testing, s, level).result() for s in SEEDS]
+    ref = [play(reference, s, level).result() for s in SEEDS]
+    mean = lambda rs: sum(r["score"] for r in rs) / len(rs)
+    if level < 5:
+        assert mean(blind) < mean(ref) - 0.3
+    else:
+        # Servicing every part finds most of level 5's many faults, so its partial credit is
+        # higher; but it never finishes a clean job when a fault shows only to a test.
+        assert mean(blind) < mean(ref) - 0.15
+        assert sum(r["clean"] for r in blind) <= len(blind) // 2
 
 
 def test_fixing_one_of_two_faults_earns_about_half():

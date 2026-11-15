@@ -6,14 +6,21 @@ import random
 
 from . import layout as pipes
 from .sim import _tick
-from .world import FIXTURES, SIDES, Comp, State, supply_chain, PRESSURE
+from .world import FIXTURES, LATE_MAX, SIDES, Comp, State, supply_chain, PRESSURE
 
 # Difficulty ladder. Each level adds one kind of decision, not smaller pixels.
+# Level 5 closes what gives levels 1-4 away: the fault count varies while the budget and
+# washers do not, the tenant says only where the trouble is, the room of a drip is not
+# heard, and two faults show only to a test made at the right time: a weak washer past a
+# closed valve that fails some ticks after the valve is opened (`late`), and a trap that
+# drains at half speed, which only running both taps shows (`partial`).
 LEVELS = {
     1: dict(faults=1, masked=False, vague=False, decoys=0, budget=45, washers=2),
     2: dict(faults=1, masked=False, vague=True, decoys=1, budget=45, washers=2),
     3: dict(faults=2, masked=True, vague=True, decoys=1, budget=55, washers=3),
     4: dict(faults=3, masked=True, vague=True, decoys=2, budget=65, washers=4),
+    5: dict(faults=(2, 3), masked=True, vague="where", decoys=2, budget=120, washers=6, late=0.6, partial=0.4,
+            mopped=True),
 }
 
 FAULT_TYPES = (
@@ -102,11 +109,39 @@ def _fixture_of(cid: str) -> str | None:
 
 def _pick_faults(rng: random.Random, cfg: dict) -> list[dict]:
     faults = _masked_pair(rng) if cfg["masked"] else [_fault(rng, rng.choice(FAULT_TYPES))]
-    while len(faults) < cfg["faults"]:
+    count = cfg["faults"] if isinstance(cfg["faults"], int) else rng.randint(*cfg["faults"])
+    while len(faults) < count:
         cand = _fault(rng, rng.choice(FAULT_TYPES))
         if any(cand["id"] == f["id"] for f in faults):
             continue
         faults.append(cand)
+    taken = {f["id"] for f in faults}
+    if cfg.get("late") and rng.random() < cfg["late"]:  # levels 1-4 draw nothing here
+        # A valve left closed, and past it a weak washer that holds until the water is back on
+        # it: it starts dripping some ticks after that valve is opened, never before.
+        pairs = [(f"stop.{fx}.{side}", f"jhose.{fx}.{side}") for fx in FIXTURES for side in SIDES]
+        pairs += [(f"branch.{fx}.{side}", f"{j}.{fx}.{side}") for fx in FIXTURES for side in SIDES for j in ("jin", "jhose")]
+        pairs = [(v, j) for v, j in pairs if v not in taken and j not in taken
+                 and not any(f["type"] == "valve_not_open" and f["id"] in supply_chain(_fixture_of(j), j.split(".")[2])
+                             for f in faults)]
+        if pairs:
+            valve, joint = rng.choice(pairs)
+            faults.append({"type": "valve_not_open", "id": valve, "pos": "closed"})
+            faults.append({"type": "supply_leak", "id": joint, "cause": "worn", "late": rng.randint(3, LATE_MAX)})
+            taken |= {valve, joint}
+            # Often a second valve left closed, with sound joints past it: which one to watch?
+            others = [f"stop.{fx}.{side}" for fx in FIXTURES for side in SIDES]
+            others = [v for v in others if v not in taken and _fixture_of(v) + v.split(".")[2] != _fixture_of(joint) + joint.split(".")[2]
+                      and not any(f["id"] in supply_chain(_fixture_of(v), v.split(".")[2]) for f in faults
+                                  if f["type"] in ("supply_leak", "valve_not_open"))]
+            if others and rng.random() < 0.6:
+                decoy = rng.choice(others)
+                faults.append({"type": "valve_not_open", "id": decoy, "pos": "closed"})
+                taken.add(decoy)
+    if cfg.get("partial") and rng.random() < cfg["partial"]:
+        free = [f"trap.{fx}" for fx in FIXTURES if f"trap.{fx}" not in taken]
+        if free:
+            faults.append({"type": "trap_clog", "id": rng.choice(free), "partial": True})
     return faults
 
 
@@ -118,10 +153,21 @@ def _where(fault: dict) -> tuple[str, str]:
     return fx, side
 
 
-def _complaint(fault: dict, vague: bool) -> str:
+WHERE_ONLY = (
+    "Something is not right with the {sink}.",
+    "Can you look at the {sink}? It has been acting up all week.",
+    "The {sink} is giving us trouble. I don't know what is wrong with it.",
+)
+
+
+def _complaint(fault: dict, vague, rng: random.Random | None = None) -> str:
     kind = fault["type"]
     fx, side = _where(fault)
     sink = "kitchen sink" if fx == "kitchen" else "bathroom basin"
+    if vague == "where":  # level 5: where the trouble is (or seems to be), nothing about what it is
+        if rng.random() < 0.25:
+            sink = "bathroom basin" if fx == "kitchen" else "kitchen sink"  # the wrong room
+        return rng.choice(WHERE_ONLY).format(sink=sink)
     if kind == "trap_clog":
         if vague:
             return f"The {sink} keeps backing up. I think the big drain pipe in the utility room is blocked."
@@ -179,31 +225,41 @@ def generate(seed: int, level: int, faults: list[dict] | None = None) -> State:
     basin = {f: 0 for f in FIXTURES}
     for f in faults:
         c = comps[f["id"]]
-        if f["type"] in ("trap_clog", "branch_clog", "aerator_clog"):
+        if f.get("partial"):
+            c.fault = "partial"
+        elif f.get("late"):
+            c.late = f["late"]  # sound for now; the washer gives after this many ticks under pressure
+        elif f["type"] in ("trap_clog", "branch_clog", "aerator_clog"):
             c.fault = "clog"
         elif f["type"] in ("supply_leak", "drain_leak"):
             c.fault = f["cause"]
         else:
             c.pos = f["pos"]
 
-    # Evidence the fault has already left behind.
+    # Evidence the fault has already left behind. At level 5 the tenant has mopped the floor
+    # and bailed out the basins before you came: only old dry stains are left.
+    mopped = cfg.get("mopped", False)
     for f in faults:
-        if f["type"] == "trap_clog":
+        if mopped:
+            continue
+        if f["type"] == "trap_clog" and not f.get("partial"):
             basin[_fixture_of(f["id"])] = rng.randint(2, 4)
         elif f["type"] == "branch_clog":
             basin["kitchen"] = max(basin["kitchen"], rng.randint(2, 4))
             basin["bathroom"] = max(basin["bathroom"], rng.randint(1, 2))
     for f in faults:
         c = comps[f["id"]]
+        if f.get("late"):
+            continue  # nothing to see until it gives
         if f["type"] == "supply_leak":
-            if _pressure_at(comps, c.id) > 0:
+            if _pressure_at(comps, c.id) > 0 and not mopped:
                 c.puddle = 2
             else:
                 c.stain = True
         elif f["type"] == "drain_leak":
             fx = _fixture_of(c.id)
             hidden = c.role == "below_trap" and comps[f"trap.{fx}"].fault
-            if hidden:
+            if hidden or mopped:
                 c.stain = rng.random() < 0.5
             else:
                 c.puddle = 1
@@ -231,7 +287,7 @@ def generate(seed: int, level: int, faults: list[dict] | None = None) -> State:
         level=level,
         budget=cfg["budget"],
         comps=comps,
-        complaint=_complaint(faults[0], cfg["vague"]),
+        complaint=_complaint(faults[0], cfg["vague"], rng),
         faults=faults,
         initial_pos={cid: c.pos for cid, c in comps.items() if c.kind == "valve"},
         manifold={"cold": cold, "hot": hot},

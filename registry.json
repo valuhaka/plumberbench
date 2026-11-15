@@ -2,7 +2,7 @@
   {
     "name": "plumberbench",
     "version": "1.0",
-    "description": "All 80 houses: levels 1-4, ten seeds each, with FACTS and pictures only.",
+    "description": "All 100 houses: levels 1-5, ten seeds each, with FACTS and pictures only.",
     "tasks": [
       {
         "name": "l1-s000-facts",
@@ -323,13 +323,140 @@
       {
         "name": "l4-s009-vision",
         "path": "harbor/tasks/l4-s009-vision"
+      },
+      {
+        "name": "l5-s000-facts",
+        "path": "harbor/tasks/l5-s000-facts"
+      },
+      {
+        "name": "l5-s000-vision",
+        "path": "harbor/tasks/l5-s000-vision"
+      },
+      {
+        "name": "l5-s001-facts",
+        "path": "harbor/tasks/l5-s001-facts"
+      },
+      {
+        "name": "l5-s001-vision",
+        "path": "harbor/tasks/l5-s001-vision"
+      },
+      {
+        "name": "l5-s002-facts",
+        "path": "harbor/tasks/l5-s002-facts"
+      },
+      {
+        "name": "l5-s002-vision",
+        "path": "harbor/tasks/l5-s002-vision"
+      },
+      {
+        "name": "l5-s003-facts",
+        "path": "harbor/tasks/l5-s003-facts"
+      },
+      {
+        "name": "l5-s003-vision",
+        "path": "harbor/tasks/l5-s003-vision"
+      },
+      {
+        "name": "l5-s004-facts",
+        "path": "harbor/tasks/l5-s004-facts"
+      },
+      {
+        "name": "l5-s004-vision",
+        "path": "harbor/tasks/l5-s004-vision"
+      },
+      {
+        "name": "l5-s005-facts",
+        "path": "harbor/tasks/l5-s005-facts"
+      },
+      {
+        "name": "l5-s005-vision",
+        "path": "harbor/tasks/l5-s005-vision"
+      },
+      {
+        "name": "l5-s006-facts",
+        "path": "harbor/tasks/l5-s006-facts"
+      },
+      {
+        "name": "l5-s006-vision",
+        "path": "harbor/tasks/l5-s006-vision"
+      },
+      {
+        "name": "l5-s007-facts",
+        "path": "harbor/tasks/l5-s007-facts"
+      },
+      {
+        "name": "l5-s007-vision",
+        "path": "harbor/tasks/l5-s007-vision"
+      },
+      {
+        "name": "l5-s008-facts",
+        "path": "harbor/tasks/l5-s008-facts"
+      },
+      {
+        "name": "l5-s008-vision",
+        "path": "harbor/tasks/l5-s008-vision"
+      },
+      {
+        "name": "l5-s009-facts",
+        "path": "harbor/tasks/l5-s009-facts"
+      },
+      {
+        "name": "l5-s009-vision",
+        "path": "harbor/tasks/l5-s009-vision"
+      }
+    ]
+  },
+  {
+    "name": "plumberbench-hard",
+    "version": "1.0",
+    "description": "The ten level 5 houses, pictures only: the quick test that separates frontier agents.",
+    "tasks": [
+      {
+        "name": "l5-s000-vision",
+        "path": "harbor/tasks/l5-s000-vision"
+      },
+      {
+        "name": "l5-s001-vision",
+        "path": "harbor/tasks/l5-s001-vision"
+      },
+      {
+        "name": "l5-s002-vision",
+        "path": "harbor/tasks/l5-s002-vision"
+      },
+      {
+        "name": "l5-s003-vision",
+        "path": "harbor/tasks/l5-s003-vision"
+      },
+      {
+        "name": "l5-s004-vision",
+        "path": "harbor/tasks/l5-s004-vision"
+      },
+      {
+        "name": "l5-s005-vision",
+        "path": "harbor/tasks/l5-s005-vision"
+      },
+      {
+        "name": "l5-s006-vision",
+        "path": "harbor/tasks/l5-s006-vision"
+      },
+      {
+        "name": "l5-s007-vision",
+        "path": "harbor/tasks/l5-s007-vision"
+      },
+      {
+        "name": "l5-s008-vision",
+        "path": "harbor/tasks/l5-s008-vision"
+      },
+      {
+        "name": "l5-s009-vision",
+        "path": "harbor/tasks/l5-s009-vision"
       }
     ]
   },
   {
     "name": "plumberbench-vision",
     "version": "1.0",
-    "description": "The 40 pictures-only houses.",
+    "description": "The 50 pictures-only houses.",
     "tasks": [
       {
         "name": "l1-s000-vision",
@@ -490,13 +617,53 @@
       {
         "name": "l4-s009-vision",
         "path": "harbor/tasks/l4-s009-vision"
+      },
+      {
+        "name": "l5-s000-vision",
+        "path": "harbor/tasks/l5-s000-vision"
+      },
+      {
+        "name": "l5-s001-vision",
+        "path": "harbor/tasks/l5-s001-vision"
+      },
+      {
+        "name": "l5-s002-vision",
+        "path": "harbor/tasks/l5-s002-vision"
+      },
+      {
+        "name": "l5-s003-vision",
+        "path": "harbor/tasks/l5-s003-vision"
+      },
+      {
+        "name": "l5-s004-vision",
+        "path": "harbor/tasks/l5-s004-vision"
+      },
+      {
+        "name": "l5-s005-vision",
+        "path": "harbor/tasks/l5-s005-vision"
+      },
+      {
+        "name": "l5-s006-vision",
+        "path": "harbor/tasks/l5-s006-vision"
+      },
+      {
+        "name": "l5-s007-vision",
+        "path": "harbor/tasks/l5-s007-vision"
+      },
+      {
+        "name": "l5-s008-vision",
+        "path": "harbor/tasks/l5-s008-vision"
+      },
+      {
+        "name": "l5-s009-vision",
+        "path": "harbor/tasks/l5-s009-vision"
       }
     ]
   },
   {
     "name": "plumberbench-facts",
     "version": "1.0",
-    "description": "The 40 houses with FACTS.",
+    "description": "The 50 houses with FACTS.",
     "tasks": [
       {
         "name": "l1-s000-facts",
@@ -657,6 +824,46 @@
       {
         "name": "l4-s009-facts",
         "path": "harbor/tasks/l4-s009-facts"
+      },
+      {
+        "name": "l5-s000-facts",
+        "path": "harbor/tasks/l5-s000-facts"
+      },
+      {
+        "name": "l5-s001-facts",
+        "path": "harbor/tasks/l5-s001-facts"
+      },
+      {
+        "name": "l5-s002-facts",
+        "path": "harbor/tasks/l5-s002-facts"
+      },
+      {
+        "name": "l5-s003-facts",
+        "path": "harbor/tasks/l5-s003-facts"
+      },
+      {
+        "name": "l5-s004-facts",
+        "path": "harbor/tasks/l5-s004-facts"
+      },
+      {
+        "name": "l5-s005-facts",
+        "path": "harbor/tasks/l5-s005-facts"
+      },
+      {
+        "name": "l5-s006-facts",
+        "path": "harbor/tasks/l5-s006-facts"
+      },
+      {
+        "name": "l5-s007-facts",
+        "path": "harbor/tasks/l5-s007-facts"
+      },
+      {
+        "name": "l5-s008-facts",
+        "path": "harbor/tasks/l5-s008-facts"
+      },
+      {
+        "name": "l5-s009-facts",
+        "path": "harbor/tasks/l5-s009-facts"
       }
     ]
   },

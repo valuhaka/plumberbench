@@ -7,6 +7,12 @@ of the package, so it can be copied into a Harbor `solution/` folder as is.
 
 Method, in short: stop any running leak first, then test every fixture, fix
 what the tests point to, and test again, because one fault can hide another.
+In a level 5 house (the only budget of LATE_BUDGET) a weak washer past a valve
+found closed can give up to LATE_MAX ticks after that valve opens: so after opening
+one it stays and watches the joints past it, and before finishing it waits that long
+after the last valve it opened and looks under both sinks again. At level 5 `inspect`
+answers in the close-up picture; the solver reads that picture's FACTS, which only an
+`inspect` produces, so it pays for every look it takes.
 """
 from __future__ import annotations
 
@@ -15,6 +21,8 @@ import re
 import sys
 
 FIXTURES = ("kitchen", "bathroom")
+LATE_BUDGET = 120  # level 5's budget, the same in every level 5 house
+LATE_MAX = 10      # ticks under pressure a weak washer can hold (world.LATE_MAX)
 STATUS = re.compile(r"step (\d+) \| time (\d+)/(\d+) \| damage (\d+) \| (\w+)/(\w+) \|")
 
 
@@ -31,6 +39,7 @@ class Seen:
         self.over = "The job is over" in text
         m = STATUS.search(text)
         self.room, self.view = (m.group(5), m.group(6)) if m else ("", "")
+        self.tick, self.budget = (int(m.group(2)), int(m.group(3))) if m else (None, None)
         self.facts = facts or []
         self.in_view: list[str] = []
         for line in text.splitlines():
@@ -67,6 +76,11 @@ class Solver:
         self.utility_visits = 0
         self.bucket = None                # tag the bucket stands under
         self.traps_done: set[str] = set()
+        self.tick = 0
+        self.budget = 0
+        self.pressure_back = 0            # tick water last came back on somewhere
+        self.dry: set[tuple[str, str]] = set()  # (fixture, side) whose tap last ran less than full
+        self.opened: list[dict] = []      # valves found shut and opened by the last open_valves
 
     # ---------------------------------------------------------- plumbing
 
@@ -82,6 +96,10 @@ class Solver:
         self.log(tool, args, text.splitlines()[1] if "\n" in text else text)
         if seen.over:
             raise Done
+        if seen.tick is not None:
+            self.tick, self.budget = seen.tick, seen.budget
+            if tool == "set_valve" and args.get("position") == "open" and not seen.error:
+                self.pressure_back = seen.tick
         if seen.room:
             self.room, self.view = seen.room, seen.view
             for t in seen.in_view:
@@ -103,19 +121,45 @@ class Solver:
     # ------------------------------------------------------------ fixes
 
     def open_valves(self, seen: Seen) -> bool:
-        changed = False
+        self.opened = []
         for v in seen.all("valve"):
             if v["role"] != "spare" and v["handle"] != "open":
                 self.do("set_valve", tag=v["tag"], position="open")
                 self.diag.add("valve_not_open")
-                changed = True
-        return changed
+                self.opened.append(v)
+        if self.budget >= LATE_BUDGET:
+            for v in [v for v in self.opened if v["role"] == "stop"]:
+                self.watch(self.room, v["line"], ("tap_side",))
+        return bool(self.opened)
+
+    def watch(self, fx: str, line: str, where: tuple[str, ...]) -> None:
+        """Level 5: a weak washer past a valve just opened gives within LATE_MAX ticks under
+        pressure. Stay, with the bucket under it, and look every tick."""
+        since = self.tick
+        self.goto(fx)
+        under = self.see("under_sink")
+        joints = [j for j in under.all("joint", line=line, state="closed") if j["where"] in where]
+        if not joints:
+            return
+        self.bucket_under(joints[0]["tag"])
+        while self.tick < since + LATE_MAX:
+            seen = self.do("wait", ticks=1)
+            wet = [j for j in seen.all("joint", line=line, state="closed") if j["wet"] and j["where"] in where]
+            if wet:
+                self.fix_supply_leak(fx, wet[0], seen)
+                return
+
+    def loose(self, joint: dict) -> bool:
+        """`inspect` says so, or at level 5 its close-up shows the nut backed off (FACTS `nut`)."""
+        seen = self.do("inspect", tag=joint["tag"])
+        close = seen.one("joint", tag=joint["tag"]) or {}
+        return "loose" in seen.text or close.get("nut") == "backed off"
 
     def fix_supply_leak(self, fx: str, joint: dict, under: Seen) -> None:
         tag = joint["tag"]
         self.diag.add("supply_leak")
         self.bucket_under(tag)
-        if "loose" in self.do("inspect", tag=tag).text:
+        if self.loose(joint):
             self.do("repair", tag=tag, method="tighten")
             return
         if joint["where"] == "tap_side":
@@ -124,9 +168,9 @@ class Solver:
             self.swap_washer(tag)
             self.do("set_valve", tag=stop, position="open")
         else:
-            # Upstream of its stop valve: only the main can take the pressure off.
+            # Upstream of its stop valve: only a valve in the utility room can take the pressure off.
             self.deferred.add(tag)
-            self.pending_main.append((fx, tag))
+            self.pending_main.append((fx, tag, joint["line"]))
 
     def swap_washer(self, tag: str) -> None:
         self.do("open_joint", tag=tag)
@@ -137,7 +181,7 @@ class Solver:
         self.diag.add("drain_leak")
         if level > 0:
             self.bucket_under(tag)  # standing water: it drips now and pours out if undone
-        if "loose" in self.do("inspect", tag=tag).text:
+        if self.loose(joint):
             self.do("repair", tag=tag, method="tighten")
             return
         self.swap_washer(tag)
@@ -197,6 +241,8 @@ class Solver:
             self.see("counter")
             ran = self.do("run_tap", side="both", ticks=1)
             tap, after = ran.one("tap"), ran.one("basin")["level"]
+            for side in ("cold", "hot"):
+                (self.dry.discard if tap[side] == "full" else self.dry.add)((fx, side))
             if after > 0:
                 self.blocked[fx] = True
                 continue
@@ -210,7 +256,8 @@ class Solver:
             if "full" not in (tap["cold"], tap["hot"]) and fx not in self.aerator_checked:
                 self.aerator_checked.add(fx)
                 aerator = self.see("counter").one("aerator")["tag"]
-                if "crusted" in self.do("inspect", tag=aerator).text:
+                seen = self.do("inspect", tag=aerator)
+                if "crusted" in seen.text or (seen.one("aerator", tag=aerator) or {}).get("scale"):
                     self.do("repair", tag=aerator, method="clear")
                     self.diag.add("aerator_clog")
                     continue
@@ -239,24 +286,18 @@ class Solver:
     def utility(self, cleanout: bool) -> bool:
         """Do everything that needs the utility room. Returns True if anything changed."""
         self.utility_visits += 1
-        changed = False
-        if self.pending_main:
-            self.goto("utility")
-            wall = self.see("wall")
-            changed |= self.open_valves(wall)
-            main = wall.one("valve", role="main")["tag"]
-            self.do("set_valve", tag=main, position="closed")
-            for fx, tag in self.pending_main:
-                self.goto(fx)
-                self.swap_washer(tag)
-                self.deferred.discard(tag)
-            self.pending_main = []
-            self.goto("utility")
-            self.do("set_valve", tag=main, position="open")
-            changed = True
+        changed = self.pressure_off_repairs()
         self.goto("utility")
         wall = self.see("wall")
         changed |= self.open_valves(wall)
+        if self.budget >= LATE_BUDGET:  # watch past a branch valve found shut, where its tap ran dry
+            for v in [v for v in self.opened if v["role"] == "branch"]:
+                fed = [fx for fx, side in self.dry if side == v["line"]]
+                if len(fed) == 1:
+                    self.watch(fed[0], v["line"], ("wall_side", "tap_side"))
+            changed |= self.pressure_off_repairs()  # a weak wall-side washer found while watching
+            self.goto("utility")
+            wall = self.see("wall")
         if cleanout:
             tag = wall.one("cleanout")["tag"]
             # Tapping the pipe is free of washers; opening the plug is not.
@@ -271,6 +312,50 @@ class Solver:
             self.cleanout_checked = True
         self.need_utility = False
         return changed
+
+    def pressure_off_repairs(self) -> bool:
+        """Refit the wall-side joints waiting for the pressure to come off, from the utility room."""
+        if not self.pending_main:
+            return False
+        self.goto("utility")
+        wall = self.see("wall")
+        if self.open_valves(wall):
+            wall = self.see("wall")  # the levers as they are now
+        shut = [wall.one("valve", role="main")["tag"]]
+        if self.do("set_valve", tag=shut[0], position="closed").error:
+            # Seized (level 5): shut every open branch valve on the lines that need it instead.
+            lines = {line for _, _, line in self.pending_main}
+            shut = [v["tag"] for v in wall.all("valve")
+                    if v["role"] == "branch" and v["line"] in lines and v["handle"] == "open"]
+            for t in shut:
+                self.do("set_valve", tag=t, position="closed")
+        for fx, tag, _ in self.pending_main:
+            self.goto(fx)
+            self.swap_washer(tag)
+            self.deferred.discard(tag)
+        self.pending_main = []
+        self.goto("utility")
+        for t in shut:
+            self.do("set_valve", tag=t, position="open")
+        return True
+
+    def late_check(self) -> None:
+        """Level 5: wait out the weakest washer after the last valve opened, then look again."""
+        for _ in range(3):
+            left = self.pressure_back + LATE_MAX - self.tick
+            while left > 0:
+                self.do("wait", ticks=min(10, left))
+                left = self.pressure_back + LATE_MAX - self.tick
+            found = False
+            for fx in sorted(FIXTURES, key=lambda f: f != self.room):
+                self.goto(fx)
+                if any(j["wet"] for j in self.see("under_sink").all("joint", state="closed")):
+                    found = True
+                    self.stop_leaks(fx)
+            if self.pending_main:
+                self.utility(False)
+            if not found:
+                return
 
     # ------------------------------------------------------------- run
 
@@ -301,6 +386,8 @@ class Solver:
                     pending = [fx for fx in FIXTURES if not self.clean.get(fx)]
                 if not pending:
                     break
+            if self.budget >= LATE_BUDGET:
+                self.late_check()
             self.do("finish", diagnosis=sorted(self.diag))
         except Done:
             pass

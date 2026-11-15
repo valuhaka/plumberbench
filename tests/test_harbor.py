@@ -124,7 +124,9 @@ def test_registry_lists_every_task_folder_once():
     root = Path(__file__).resolve().parents[1]
     reg = json.loads((root / "registry.json").read_text())
     by_name = {d["name"]: d for d in reg}
-    assert set(by_name) == {"plumberbench", "plumberbench-vision", "plumberbench-facts", "plumberbench-smoke"}
+    assert set(by_name) == {"plumberbench", "plumberbench-hard", "plumberbench-vision", "plumberbench-facts",
+                            "plumberbench-smoke"}
+    assert all(t["name"].startswith("l5-") and t["name"].endswith("-vision") for t in by_name["plumberbench-hard"]["tasks"])
     for d in reg:
         assert d["version"] and d["description"] and d["tasks"]
         for t in d["tasks"]:

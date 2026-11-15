@@ -11,7 +11,7 @@ authors = []
 keywords = ["plumberbench", "vision", "world-model", "diagnosis", "mcp"]
 
 [metadata]
-difficulty = "hard"
+difficulty = "medium"
 category = "agentic"
 tags = ["mcp", "vision", "sidecar", "separate-verifier"]
 

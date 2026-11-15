@@ -17,4 +17,9 @@ opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), ur
 url = os.environ.get("PB_URL", "http://127.0.0.1:8080")
 reply = json.load(opener.open(f"{url}/history?level={level}&seed={seed}"))
 jar.save(ignore_discard=True)
+if reply["current"]["image"]:  # the picture of the briefing: the agent's first look at the house
+    import base64
+    first = d / "pic_000.jpg"
+    first.write_bytes(base64.b64decode(reply["current"]["image"]))
+    (d / "last_picture.txt").write_text(str(first))
 print(job, "level", level, reply["log"][0][1].splitlines()[1])

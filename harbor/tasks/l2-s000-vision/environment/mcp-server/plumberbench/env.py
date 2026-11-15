@@ -55,6 +55,8 @@ class Episode:
             obs = Obs(text=observe.error(s, str(e)), error=True)
             self._log(tool, args, obs, refused=True)
             return obs
+        if tool == "inspect" and s.level >= 5 and not self.with_facts:
+            message = observe.close_look(s, args["tag"], message)
         obs = Obs(text=observe.text(s, message, self.with_facts), facts=observe.facts(s))
         if self.render:
             from .render import render  # imported late so headless tests need no GL

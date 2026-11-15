@@ -22,6 +22,8 @@ VIEWS = {
 
 BASIN_CAP = 8        # units a basin holds before it overflows
 DRAIN_RATE = 2       # units per tick a clear drain carries
+SLOW_RATE = 1        # units per tick a partly blocked trap carries
+LATE_MAX = 10        # ticks under pressure a weak washer can hold before it fails (level 5)
 BUCKET_CAP = 10      # units the bucket holds
 SPRAY_RATE = 3       # units per tick from an undone joint under pressure
 DAMAGE_CAP = 20      # damage at which the damage part of the score reaches zero
@@ -78,10 +80,11 @@ class Comp:
                                # joint: wall_side|tap_side|above_trap|below_trap
     pos: str = "open"          # valve position: open | half | closed
     open: bool = False         # joint undone, trap removed, cleanout plug out
-    fault: str | None = None   # joint: loose|worn ; trap, cleanout, aerator: clog
+    fault: str | None = None   # joint: loose|worn ; trap, cleanout, aerator: clog ; trap: partial (drains slowly)
     puddle: int = 0            # water on the floor under this part
     stain: bool = False        # old dry stain, not water
     wet_tick: int = -99        # last tick this part let water out
+    late: int = 0              # joint: ticks under pressure left before a weak washer fails (level 5)
 
 
 @dataclass
@@ -113,6 +116,7 @@ class State:
     stopped: str | None = None      # why the job ended without `finish`: "time" or "free actions"
     diagnosis: list[str] | None = None
     layout: dict[str, dict] = field(default_factory=dict)  # pipe layout under each sink (layout.py)
+    inspected: str | None = None    # comp id `inspect` looked at in this step (its close-up is on screen)
 
     def by_tag(self, tag: str) -> Comp | None:
         tag = str(tag).strip().upper()

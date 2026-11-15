@@ -1,0 +1,24 @@
+# Merged on top of Harbor's base compose config; `main` is configured by Harbor.
+services:
+  main:
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+    environment:
+      PB_SEED: "8"
+      PB_LEVEL: "5"
+      PB_FACTS: "1"
+      PB_RENDER: "1"
+      PB_LOG_DIR: /var/plumberbench
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s

@@ -161,93 +161,98 @@ def load_results(results: Path) -> tuple[dict, list[dict]]:
 
 # ------------------------------------------------------------------ figures
 
-def shared_houses(models: list[dict]) -> set:
-    """(level, seed, mode) of the houses every model played: the chart compares only these."""
-    sets = [{(r["level"], r["seed"], r["mode"]) for r in m["rows"]} for m in models]
-    return set.intersection(*sets) if sets else set()
-
-
-def on_shared(models: list[dict]) -> list[tuple[dict, list[dict]]]:
-    houses = shared_houses(models)
-    return [(m, [r for r in m["rows"] if (r["level"], r["seed"], r["mode"]) in houses]) for m in models]
-
-
 def legend(entries: list[tuple[str, str, str]]) -> str:
     """entries: (name, colour, key class)."""
     items = "".join(f'<li><span class="key {cls}" style="background:{c}"></span>{ESC(n)}</li>' for n, c, cls in entries)
     return f'<ul class="legend">{items}</ul>'
 
 
+def pictures_jobs(models: list[dict]) -> list[tuple[dict, list[dict]]]:
+    """Each model with its pictures-only jobs: what the chart and table compare."""
+    return [(m, [r for r in m["rows"] if r["mode"] == "pictures only"]) for m in models]
+
+
+def is_clean(r: dict) -> bool:
+    return r.get("repair") == 1 and r["diagnosis_correct"] and bool(r.get("finished"))
+
+
 def models_chart(ladder: dict, models: list[dict]) -> str:
-    """Score by level on the shared houses, one line per model; the reference plumber and the
-    never-test policy (means over every house of the level) in neutral ink for scale."""
-    shared = on_shared(models)
-    levels = sorted({r["level"] for _, rows in shared for r in rows})
+    """Every pictures-only job as a dot, by level and model: filled if it was a clean job
+    (every fault fixed, named right, reported done), hollow if not; a short line marks a
+    model's mean. The reference plumber (solid) and the never-test policy (dashed) are each
+    level's means over every house, in neutral ink, for scale."""
+    jobs = pictures_jobs(models)
+    levels = sorted({r["level"] for _, rows in jobs for r in rows})
     if not levels:
         return ""
-    left, right, top, plot_h, width = 48, 40, 12, 230, 960
-    step = (width - left - right) / max(1, len(levels) - 1)
-    xpos = {lv: left + i * step for i, lv in enumerate(levels)}
+    left, right, top, plot_h, width = 48, 12, 12, 250, 960
+    band = (width - left - right) / len(levels)
+    slot = band / (len(models) + 1)
     y = lambda v: top + (1 - v) * plot_h
     parts = []
     for v in (0, 0.25, 0.5, 0.75, 1.0):
-        parts.append(f'<line x1="{left - 20}" x2="{width - right + 20}" y1="{y(v):.1f}" y2="{y(v):.1f}" class="grid"/>'
-                     f'<text x="{left - 26}" y="{y(v) + 4:.1f}" class="tick" text-anchor="end">{v:g}</text>')
-    for lv in levels:
-        parts.append(f'<text x="{xpos[lv]:.1f}" y="{top + plot_h + 22}" class="lv" text-anchor="middle">Level {lv}</text>')
-    series = []
-    for key, name, color in SERIES:
-        means = {lv: statistics.mean(ladder["scores"][key][str(lv)]) for lv in levels}
-        series.append((name, color, means, None, "base" + (" dash" if "never" in key else "")))
-    for (m, rows), color in zip(shared, MODEL_COLORS):
-        by = {}
-        for r in rows:
-            by.setdefault(r["level"], []).append(r)
-        series.append((m["label"], color, {lv: statistics.mean(r["score"] for r in rs) for lv, rs in by.items()},
-                       by, "model"))
-    for name, color, means, jobs, kind in series:
-        pts = [(xpos[lv], y(means[lv])) for lv in levels if lv in means]
-        d = "M" + " L".join(f"{x:.1f} {yy:.1f}" for x, yy in pts)
-        parts.append(f'<path d="{d}" class="{kind}" stroke="{color}"/>')
-        for lv in levels:
-            if lv not in means:
+        parts.append(f'<line x1="{left - 8}" x2="{width - right}" y1="{y(v):.1f}" y2="{y(v):.1f}" class="grid"/>'
+                     f'<text x="{left - 14}" y="{y(v) + 4:.1f}" class="tick" text-anchor="end">{v:g}</text>')
+    for i, lv in enumerate(levels):
+        x0 = left + i * band
+        if i:
+            parts.append(f'<line x1="{x0:.1f}" x2="{x0:.1f}" y1="{top}" y2="{top + plot_h}" class="sep"/>')
+        parts.append(f'<text x="{x0 + band / 2:.1f}" y="{top + plot_h + 22}" class="lv" text-anchor="middle">Level {lv}</text>')
+        for key, name, color in SERIES:
+            scores = ladder["scores"].get(key, {}).get(str(lv))
+            if not scores:
                 continue
-            cx, cy = xpos[lv], y(means[lv])
-            if kind == "model":
-                parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="5" fill="{color}" stroke="#fff" stroke-width="2"/>')
-                st = stats(jobs[lv])
-                tip = (f"{means[lv]:.2f}\n{name}, level {lv}\n{st['fixed_all']} of {st['jobs']} "
-                       f"{'house' if st['jobs'] == 1 else 'houses'} with every fault fixed")
-            else:
-                tip = f"{means[lv]:.2f} mean\n{name}, level {lv}\n{ladder['seeds']} houses"
-            parts.append(f'<rect x="{cx - 12:.1f}" y="{cy - 12:.1f}" width="24" height="24" class="hit" '
+            mean = statistics.mean(scores)
+            parts.append(f'<line x1="{x0 + 6:.1f}" x2="{x0 + band - 6:.1f}" y1="{y(mean):.1f}" y2="{y(mean):.1f}" '
+                         f'class="base{" dash" if "never" in key else ""}" stroke="{color}"/>')
+            tip = f"{mean:.2f} mean\n{name}, level {lv}\n{len(scores)} houses"
+            parts.append(f'<rect x="{x0 + 6:.1f}" y="{y(mean) - 5:.1f}" width="{band - 12:.1f}" height="10" class="hit" '
                          f'tabindex="0" data-tip="{ESC(tip)}" aria-label="{ESC(tip.replace(chr(10), ", "))}"/>')
+        for k, ((m, rows), color) in enumerate(zip(jobs, MODEL_COLORS)):
+            mine = [r for r in rows if r["level"] == lv]
+            cx = x0 + slot * (k + 1)
+            if len(mine) > 1:
+                mean = statistics.mean(r["score"] for r in mine)
+                parts.append(f'<line x1="{cx - slot * 0.38:.1f}" x2="{cx + slot * 0.38:.1f}" y1="{y(mean):.1f}" '
+                             f'y2="{y(mean):.1f}" class="mean" stroke="{color}"/>')
+            for j, r in enumerate(sorted(mine, key=lambda r: r["score"])):
+                dx = (j - (len(mine) - 1) / 2) * 7
+                fill = color if is_clean(r) else "#ffffff"
+                parts.append(f'<circle cx="{cx + dx:.1f}" cy="{y(r["score"]):.1f}" r="5" fill="{fill}" stroke="{color}" stroke-width="2"/>')
+                left_in = r.get("finished") and r.get("repair", 1) < 1
+                tip = (f"{r['score']:.2f}\n{m['label']}, level {lv}, house {r['seed']}\n"
+                       + ("clean job" if is_clean(r) else f"faults fixed {r['faults']}"
+                          + (", reported done with a fault left" if left_in else "")
+                          + ("" if r["diagnosis_correct"] else ", diagnosis wrong")))
+                parts.append(f'<rect x="{cx + dx - 9:.1f}" y="{y(r["score"]) - 9:.1f}" width="18" height="18" class="hit" '
+                             f'tabindex="0" data-tip="{ESC(tip)}" aria-label="{ESC(tip.replace(chr(10), ", "))}"/>')
     height = top + plot_h + 32
     return (f'<svg class="chart" viewBox="0 0 {width} {height}" role="img" '
-            f'aria-label="Score by level for each model on the same houses, with the reference plumber and the '
-            f'never-test policy for scale; the table below lists the same">' + "".join(parts) + "</svg>")
+            f'aria-label="Every pictures-only job by level and model, filled when it was a clean job; '
+            f'the table below lists the same">' + "".join(parts) + "</svg>")
 
 
 def model_table(models: list[dict]) -> str:
-    """Per model, on the shared houses: the score at each level, then what went wrong and what it took."""
-    shared = on_shared(models)
-    levels = sorted({r["level"] for _, rows in shared for r in rows})
+    """Per model, pictures-only jobs: mean score and clean jobs per level, then what it took."""
+    jobs = pictures_jobs(models)
+    levels = sorted({r["level"] for _, rows in jobs for r in rows})
     head = "".join(f"<th>Level {lv}</th>" for lv in levels)
     rows = []
-    for m, jobs in shared:
-        if not jobs:
+    for m, mine in jobs:
+        if not mine:
             continue
-        by = {lv: [r for r in jobs if r["level"] == lv] for lv in levels}
-        cells = "".join(f"<td>{statistics.mean(r['score'] for r in by[lv]):.2f}</td>" if by[lv] else "<td>–</td>"
-                        for lv in levels)
-        st = stats(jobs)
-        left = sum(1 for r in jobs if r.get("finished") and r.get("repair", 1) < 1)
+        cells = []
+        for lv in levels:
+            at = [r for r in mine if r["level"] == lv]
+            cells.append(f"<td>{statistics.mean(r['score'] for r in at):.2f} "
+                         f"<span>{sum(map(is_clean, at))}/{len(at)} clean</span></td>" if at else "<td>–</td>")
+        st = stats(mine)
+        left = sum(1 for r in mine if r.get("finished") and r.get("repair", 1) < 1)
         secs = f"{st['seconds']:.0f} s" if st["seconds"] else "–"
-        rows.append(f'<tr><th>{ESC(m["label"])}</th><td class="dim">{ESC(m.get("harness", ""))}</td>{cells}'
-                    f"<td>{st['fixed_all']} of {st['jobs']}</td><td>{left}</td>"
-                    f"<td>{st['tool_calls']:.0f}</td><td>{secs}</td></tr>")
+        rows.append(f'<tr><th>{ESC(m["label"])}</th><td class="dim">{ESC(m.get("harness", ""))}</td>{"".join(cells)}'
+                    f"<td>{left} of {len(mine)}</td><td>{st['tool_calls']:.0f}</td><td>{secs}</td></tr>")
     return ('<div class="models"><table><thead><tr><th>Model</th><th>Run with</th>' + head +
-            '<th>Every fault fixed</th><th>Done with a fault left</th><th>Actions</th><th>Time</th></tr></thead>'
+            '<th>Done with a fault left</th><th>Actions</th><th>Time</th></tr></thead>'
             '<tbody>' + "".join(rows) + "</tbody></table></div>")
 
 
@@ -283,9 +288,10 @@ def models_slide(ladder: dict, models: list[dict]) -> str:
         return ""
     entries = [(m["label"], c, "") for m, c in zip(models, MODEL_COLORS)]
     entries += [(n, c, "line" + (" dash" if "never" in k else "")) for k, n, c in SERIES]
+    entries += [("Clean job", "#3d434b", ""), ("Fault left or misnamed", "#ffffff", "ring")]
     return f"""
 <section class="slide" id="results">
-<h2>Same houses, {len(models)} models</h2>
+<h2>Who fixes the house</h2>
 {legend(entries)}
 <div class="chart-wrap">{models_chart(ladder, models)}</div>
 {model_table(models)}
@@ -484,6 +490,7 @@ h1 span { color: #2a6fcb; }
 .legend li { display: inline-flex; align-items: center; gap: 7px; }
 .key { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .key.line { width: 16px; height: 2px; border-radius: 0; }
+.key.ring { box-shadow: inset 0 0 0 2px #3d434b; }
 .key.line.dash { background: repeating-linear-gradient(90deg, #9a9a9a 0 5px, transparent 5px 8px) !important; }
 .reward + .legend .key { border-radius: 3px; }
 .chart-wrap { width: 100%; overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 8px 8px; }
@@ -494,6 +501,8 @@ h1 span { color: #2a6fcb; }
 .chart path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .chart .model { stroke-width: 2.5; }
 .chart .base { stroke-width: 1.5; }
+.chart .mean { stroke-width: 2.5; stroke-linecap: round; }
+.chart .sep { stroke: #d9dbde; stroke-width: 1; }
 .chart .dash { stroke-dasharray: 6 5; }
 .chart .hit { fill: transparent; }
 .chart .hit:hover, .chart .hit:focus { fill: rgba(42,111,203,.10); outline: none; }
@@ -504,7 +513,7 @@ h1 span { color: #2a6fcb; }
 .models table { border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .models th, .models td { padding: 6px 12px; text-align: left; border-top: 1px solid #ececec; white-space: nowrap; }
 .models thead th { color: var(--muted); font-weight: 400; border-top: 0; }
-.models .dim { color: var(--muted); }
+.models .dim, .models td span { color: var(--muted); }
 
 /* harness */
 .flow { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }

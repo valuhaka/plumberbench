@@ -71,4 +71,4 @@ The fault types:
 
 {diagnoses}
 
-Fixing nothing scores 0, whatever else you do.
+Fixing nothing scores 0, whatever else you do.{level_note}

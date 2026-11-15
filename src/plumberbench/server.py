@@ -10,9 +10,6 @@ Settings (environment variables):
     PB_LOG_DIR            where the action log, frames and result.json go
                           (default /var/plumberbench); keep it out of the
                           agent's container
-    PB_SOLVER_TOKEN       if set, GET /facts?token=... returns the FACTS list,
-                          so the scripted reference solver can play an
-                          images-only episode; the agent never sees the token
     PB_PORT               default 8000
 
 Each tool call is one action. Actions run one at a time; a call that arrives
@@ -29,7 +26,7 @@ from fastmcp import FastMCP
 from fastmcp.utilities.types import Image
 from pydantic import Field
 from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.responses import PlainTextResponse
 
 from . import observe
 from .env import Episode
@@ -40,7 +37,6 @@ LEVEL = int(os.environ.get("PB_LEVEL", "1"))
 FACTS = os.environ.get("PB_FACTS", "1") == "1"
 RENDER = os.environ.get("PB_RENDER", "1") == "1"
 LOG_DIR = os.environ.get("PB_LOG_DIR", "/var/plumberbench")
-TOKEN = os.environ.get("PB_SOLVER_TOKEN", "")
 
 episode = Episode(SEED, LEVEL, facts=FACTS, render=RENDER, log_dir=LOG_DIR)
 lock = threading.Lock()
@@ -194,13 +190,6 @@ def finish(diagnosis: Annotated[list[Literal[DIAGNOSES]], Field(  # type: ignore
 @mcp.custom_route("/health", methods=["GET"])
 async def health(_: Request):
     return PlainTextResponse("ok")
-
-
-@mcp.custom_route("/facts", methods=["GET"])
-async def facts(request: Request):
-    if not TOKEN or request.query_params.get("token") != TOKEN:
-        return PlainTextResponse("forbidden", status_code=403)
-    return JSONResponse(observe.facts(episode.state))
 
 
 def main() -> None:

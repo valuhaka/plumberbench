@@ -4,22 +4,24 @@
 
 Modes:
     facts   every response has the picture and a FACTS list of what it shows
-    vision  pictures and sounds only; the reference solver reads FACTS through
-            a token-protected route that the agent never learns
+    vision  pictures and sounds only; the reference solver keeps its own copy
+            of the house from the seed (solution/plumberbench) and reads FACTS
+            there, so the server has nothing hidden for an agent to find
 
 Each folder:
     instruction.md, task.toml
     environment/Dockerfile                agent container (nothing to find in it)
     environment/docker-compose.yaml       adds the mcp-server sidecar
     environment/mcp-server/               the simulator, renderer and MCP server
-    solution/solve.sh, solution/solver.py the scripted reference plumber (oracle)
+    solution/solve.sh, solution/solver.py the scripted reference plumber (oracle),
+    solution/plumberbench/                and, for vision, the simulator for its copy
     tests/Dockerfile, tests/test.sh       separate verifier: replays the logged
     tests/verify.py, tests/plumberbench/  actions and scores the end state
 """
 from __future__ import annotations
 
 import argparse
-import secrets
+import json
 import shutil
 from pathlib import Path
 
@@ -30,6 +32,7 @@ PKG = Path(__file__).parent
 SERVER_FILES = ["__init__.py", "world.py", "sim.py", "layout.py", "generate.py", "judge.py", "observe.py",
                 "env.py", "scene.py", "render.py", "server.py"]
 JUDGE_FILES = ["__init__.py", "world.py", "sim.py", "layout.py", "generate.py", "judge.py"]
+TWIN_FILES = ["__init__.py", "world.py", "sim.py", "layout.py", "generate.py", "observe.py"]
 
 PINS = "mujoco==4.0.1 pillow==12.3.0 numpy==2.5.3 fastmcp==4.2.0"
 
@@ -91,7 +94,6 @@ services:
       PB_FACTS: "{facts}"
       PB_RENDER: "1"
       PB_LOG_DIR: /var/plumberbench
-      PB_SOLVER_TOKEN: "{token}"
     expose:
       - "8000"
     healthcheck:
@@ -130,7 +132,7 @@ SOLVE_SH = """#!/bin/bash
 set -euo pipefail
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source "$HOME/.local/bin/env"
-uv run --with mcp python3 /solution/solver.py http://mcp-server:8000/mcp {facts_arg}
+uv run --with mcp python3 /solution/solver.py http://mcp-server:8000/mcp {twin_arg}
 """
 
 TESTS_DOCKERFILE = """# Separate verifier image. Sidecar artifacts reappear at /var/plumberbench.
@@ -211,7 +213,6 @@ def write_task(root: Path, level: int, seed: int, mode: str) -> Path:
     (d / "tests" / "plumberbench").mkdir(parents=True)
 
     facts = mode == "facts"
-    token = "" if facts else secrets.token_hex(16)
     (d / "instruction.md").write_text(instruction_text(facts))
     (d / "task.toml").write_text(TASK_TOML.format(name=name, level=level, seed=seed, mode=mode,
                                                   difficulty=DIFFICULTY[level]))
@@ -219,14 +220,18 @@ def write_task(root: Path, level: int, seed: int, mode: str) -> Path:
     env = d / "environment"
     (env / "Dockerfile").write_text(MAIN_DOCKERFILE)
     (env / "docker-compose.yaml").write_text(COMPOSE.format(seed=seed, level=level,
-                                                            facts="1" if facts else "0", token=token))
+                                                            facts="1" if facts else "0"))
     (env / "mcp-server" / "Dockerfile").write_text(SERVER_DOCKERFILE)
     for f in SERVER_FILES:
         shutil.copy(PKG / f, env / "mcp-server" / "plumberbench" / f)
 
-    facts_arg = "" if facts else f'"http://mcp-server:8000/facts?token={token}"'
-    (d / "solution" / "solve.sh").write_text(SOLVE_SH.format(facts_arg=facts_arg))
+    twin_arg = "" if facts else f"--twin {seed} {level}"
+    (d / "solution" / "solve.sh").write_text(SOLVE_SH.format(twin_arg=twin_arg).replace(" \n", "\n"))
     shutil.copy(PKG / "solver.py", d / "solution" / "solver.py")
+    if not facts:
+        (d / "solution" / "plumberbench").mkdir()
+        for f in TWIN_FILES:
+            shutil.copy(PKG / f, d / "solution" / "plumberbench" / f)
 
     tests = d / "tests"
     (tests / "Dockerfile").write_text(TESTS_DOCKERFILE)
@@ -247,22 +252,83 @@ def seed_range(text: str) -> list[int]:
     return out
 
 
+REGISTRY_VERSION = "1.0"
+SMOKE_TASK = "harbor/smoke-vision"
+
+
+def registry(names: list[str], tasks_dir: str = "harbor/tasks") -> list[dict]:
+    """The registry.json Harbor reads with --repo: one dataset for all the houses, one per mode,
+    and the smoke test. Paths are repo-relative; Harbor fills in the repo and commit."""
+    def entries(keep):
+        return [{"name": n, "path": f"{tasks_dir}/{n}"} for n in names if keep(n)]
+    count = {m: sum(n.endswith("-" + m) for n in names) for m in ("facts", "vision")}
+    return [
+        {"name": "plumberbench", "version": REGISTRY_VERSION,
+         "description": f"All {len(names)} houses: levels 1-4, ten seeds each, with FACTS and pictures only.",
+         "tasks": entries(lambda n: True)},
+        {"name": "plumberbench-vision", "version": REGISTRY_VERSION,
+         "description": f"The {count['vision']} pictures-only houses.", "tasks": entries(lambda n: n.endswith("-vision"))},
+        {"name": "plumberbench-facts", "version": REGISTRY_VERSION,
+         "description": f"The {count['facts']} houses with FACTS.", "tasks": entries(lambda n: n.endswith("-facts"))},
+        {"name": "plumberbench-smoke", "version": REGISTRY_VERSION,
+         "description": "One task that checks pictures from an MCP tool reach the model.",
+         "tasks": [{"name": "smoke-vision", "path": SMOKE_TASK}]},
+    ]
+
+
+def write_all(out: Path, levels, seeds, modes, registry_path: Path | None) -> list[str]:
+    out.mkdir(parents=True, exist_ok=True)
+    names = []
+    for mode in modes:
+        for level in levels:
+            for seed in seeds:
+                names.append(write_task(out, level, seed, mode).name)
+    if registry_path is not None:
+        registry_path.write_text(json.dumps(registry(sorted(names)), indent=2) + "\n")
+    return names
+
+
+def differences(a: Path, b: Path) -> list[str]:
+    """Files that differ between two task trees (missing on either side included)."""
+    files = lambda root: {p.relative_to(root).as_posix() for p in root.rglob("*")
+                          if p.is_file() and "__pycache__" not in p.parts}
+    fa, fb = files(a), files(b)
+    out = sorted(fa ^ fb)
+    out += sorted(f for f in fa & fb if (a / f).read_bytes() != (b / f).read_bytes())
+    return out
+
+
+def check(out: Path, registry_path: Path, levels, seeds, modes) -> list[str]:
+    """What is stale in the committed tasks and registry, compared with a fresh generation."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        fresh = Path(tmp) / "tasks"
+        write_all(fresh, levels, seeds, modes, Path(tmp) / "registry.json")
+        stale = [f"{out}/{f}" for f in differences(out, fresh)] if out.exists() else [f"{out}/ (missing)"]
+        if not registry_path.exists() or registry_path.read_text() != (Path(tmp) / "registry.json").read_text():
+            stale.append(str(registry_path))
+    return stale
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Write Harbor task folders for PlumberBench.")
+    ap = argparse.ArgumentParser(description="Write Harbor task folders for PlumberBench, and registry.json.")
     ap.add_argument("--out", default="harbor/tasks")
+    ap.add_argument("--registry", default="registry.json", help="where to write registry.json ('' for none)")
     ap.add_argument("--levels", type=int, nargs="+", default=list(LEVELS))
     ap.add_argument("--seeds", default="0-9", help="e.g. 0-9 or 0,3,7-9")
     ap.add_argument("--mode", nargs="+", choices=("facts", "vision"), default=["facts", "vision"])
+    ap.add_argument("--check", action="store_true", help="only report whether the committed tasks are up to date")
     a = ap.parse_args()
-    root = Path(a.out)
-    root.mkdir(parents=True, exist_ok=True)
-    n = 0
-    for mode in a.mode:
-        for level in a.levels:
-            for seed in seed_range(a.seeds):
-                write_task(root, level, seed, mode)
-                n += 1
-    print(f"Wrote {n} tasks to {root}/")
+    out, seeds = Path(a.out), seed_range(a.seeds)
+    if a.check:
+        stale = check(out, Path(a.registry), a.levels, seeds, a.mode)
+        if stale:
+            print("Out of date (regenerate with python -m plumberbench.tasks):\n  " + "\n  ".join(stale[:20]))
+            return 1
+        print(f"{out}/ and {a.registry} are up to date.")
+        return 0
+    names = write_all(out, a.levels, seeds, a.mode, Path(a.registry) if a.registry else None)
+    print(f"Wrote {len(names)} tasks to {out}/" + (f" and {a.registry}" if a.registry else ""))
     return 0
 
 

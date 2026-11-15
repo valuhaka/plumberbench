@@ -309,15 +309,19 @@ class Solver:
 # ------------------------------------------------- run against a live server
 
 def main() -> int:
-    """Usage: solver.py [mcp url] [facts url]
+    """Usage: solver.py [mcp url] [--twin SEED LEVEL]
 
-    Connects to the PlumberBench MCP server and plays one episode. The second
-    argument is only needed when the server runs with facts switched off.
+    Connects to the PlumberBench MCP server and plays one episode. In a
+    pictures-only episode the server sends no FACTS, and the solver cannot see;
+    with --twin it keeps its own copy of the house (the same seed, and every
+    action copied into it: the simulation is deterministic, which is also how
+    the verifier replays a job) and reads the FACTS from that. No secret, and
+    nothing on the server the agent could find. It checks that the copy's
+    STATUS line matches the server's after every action.
     """
     import asyncio
     import queue
     import threading
-    import urllib.request
 
     from mcp.client.session import ClientSession
     try:
@@ -325,8 +329,16 @@ def main() -> int:
     except ImportError:
         from mcp.client.streamable_http import streamable_http_client as streamablehttp_client
 
-    url = sys.argv[1] if len(sys.argv) > 1 else "http://mcp-server:8000/mcp"
-    facts_url = sys.argv[2] if len(sys.argv) > 2 else None
+    argv = sys.argv[1:]
+    twin = None
+    if "--twin" in argv:
+        i = argv.index("--twin")
+        seed, level = int(argv[i + 1]), int(argv[i + 2])
+        del argv[i:i + 3]
+        from plumberbench import observe, sim
+        from plumberbench.generate import generate
+        twin = generate(seed, level)
+    url = argv[0] if argv else "http://mcp-server:8000/mcp"
     requests: queue.Queue = queue.Queue()
     replies: queue.Queue = queue.Queue()
 
@@ -343,18 +355,29 @@ def main() -> int:
 
     def call(tool, args):
         requests.put((tool, args))
-        return replies.get()
+        reply = replies.get()
+        if twin is not None:
+            try:
+                sim.apply(twin, tool, args)
+            except sim.ActionError:
+                pass  # refused on the server too: it still counts towards the free-action limit
+            mine = "STATUS: " + observe.status(twin)
+            theirs = next((line for line in reply.splitlines() if line.startswith("STATUS")), None)
+            if theirs is not None and theirs != mine:
+                raise SystemExit(f"The copy of the house drifted from the server:\n  {mine}\n  {theirs}")
+        return reply
 
     def facts_source():
-        with urllib.request.urlopen(facts_url, timeout=10) as r:
-            return json.loads(r.read())
+        return observe.facts(twin)
 
     worker = threading.Thread(target=lambda: asyncio.run(pump()), daemon=True)
     worker.start()
-    Solver(call, facts_source if facts_url else None,
-           log=lambda tool, args, line: print(f"{tool} {args} -> {line}", flush=True)).run()
-    requests.put(None)
-    worker.join(timeout=10)
+    try:
+        Solver(call, facts_source if twin is not None else None,
+               log=lambda tool, args, line: print(f"{tool} {args} -> {line}", flush=True)).run()
+    finally:
+        requests.put(None)  # always release the MCP thread, or an error would leave Python waiting on it
+        worker.join(timeout=10)
     return 0
 
 

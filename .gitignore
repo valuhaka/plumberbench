@@ -6,6 +6,6 @@ __pycache__/
 play/
 results/demo/*/
 jobs/
-harbor/tasks
+runs/
 .wrangler/
 node_modules/

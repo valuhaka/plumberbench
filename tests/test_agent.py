@@ -195,3 +195,22 @@ def test_a_reply_cut_off_while_thinking_is_reported_and_kept(monkeypatch):
     gpt = agent.OpenAICompatible("m", "key")
     gpt.start("system", "task", [])
     assert gpt.step().cut_off
+
+
+def test_a_run_stops_when_the_first_job_fails_before_any_tool_call(tmp_path, monkeypatch, capsys):
+    import argparse
+    played = []
+
+    def fake_episode(provider, seed, level, facts, out, max_turns):
+        played.append((level, seed, facts))
+        return {"seed": seed, "level": level, "mode": "facts" if facts else "pictures only", "score": 0.0,
+                "faults": "0/2", "damage": 0, "time": "0/60", "free_actions": 0, "diagnosis_correct": False,
+                "stop": "codex failed: model not supported", "tool_calls": 0, "usage": {}}
+
+    monkeypatch.setattr(agent, "episode", fake_episode)
+    monkeypatch.setattr(agent, "make_provider", lambda args: object())
+    args = argparse.Namespace(out=str(tmp_path), provider="codex", model="m", mode=["facts", "vision"],
+                              levels=[3, 4], seeds="0-1", max_turns=10)
+    assert agent.cmd_run(args) == 1
+    assert played == [(3, 0, True)]
+    assert "Stopping: the first job failed" in capsys.readouterr().out

@@ -411,27 +411,35 @@ def table(rows: list[dict]) -> str:
 
 def cmd_run(args) -> int:
     root = Path(args.out) / f"{args.provider}-{(args.model or 'default').replace('/', '_')}-{time.strftime('%Y%m%d-%H%M%S')}"
-    rows = []
-    for mode in args.mode:
-        for level in args.levels:
-            for seed in seed_list(args.seeds):
-                provider = make_provider(args)
-                out = root / f"l{level}-s{seed:03d}-{mode}"
-                print(f"level {level}, house {seed}, {mode} ...", flush=True)
-                try:
-                    r = episode(provider, seed, level, mode == "facts", out, args.max_turns)
-                except Exception as e:  # keep going; record the failure
-                    print(f"  failed: {e}", flush=True)
-                    continue
-                rows.append(r)
-                print(f"  score {r['score']:.2f}, faults {r['faults']}, {r['tool_calls']} calls, stop: {r['stop']}",
-                      flush=True)
+    rows, any_calls, stopped = [], False, False
+    grid = [(mode, level, seed) for mode in args.mode for level in args.levels for seed in seed_list(args.seeds)]
+    for mode, level, seed in grid:
+        provider = make_provider(args)
+        out = root / f"l{level}-s{seed:03d}-{mode}"
+        print(f"level {level}, house {seed}, {mode} ...", flush=True)
+        try:
+            r = episode(provider, seed, level, mode == "facts", out, args.max_turns)
+        except Exception as e:  # keep going; record the failure
+            print(f"  failed: {e}", flush=True)
+            r = None
+        if r is not None:
+            rows.append(r)
+            print(f"  score {r['score']:.2f}, faults {r['faults']}, {r['tool_calls']} calls, stop: {r['stop']}",
+                  flush=True)
+            any_calls = any_calls or r["tool_calls"] > 0
+        if not any_calls and (r is None or r["stop"].startswith("codex failed")):
+            # Nothing has worked yet and this failed before a single tool call (a bad model name,
+            # key or sign-in): the other jobs would fail the same way.
+            print("Stopping: the first job failed before any tool call, so the rest would too.", flush=True)
+            stopped = True
+            break
     if rows:
         report = table(rows)
+        root.mkdir(parents=True, exist_ok=True)
         (root / "summary.md").write_text(report + "\n")
         (root / "summary.json").write_text(json.dumps(rows, indent=2))
         print("\n" + report + f"\n\nRuns, transcripts and replay pages: {root}")
-    return 0 if rows else 1
+    return 1 if stopped or not rows else 0
 
 
 # ------------------------------------------------------------------ smoke

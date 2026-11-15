@@ -1,0 +1,23 @@
+# The online play server: a second Worker that owns plumberbench.org/play*, in front of
+# one container running `python -m plumberbench.online` (../../Dockerfile).
+# Deploy: npm install && npx wrangler deploy (Workers Paid plan; Docker running locally).
+# Until it is deployed, the site's Worker answers /play with a page saying how to play locally.
+name = "plumberbench-play"
+main = "index.js"
+compatibility_date = "2026-10-01"
+routes = [{ pattern = "plumberbench.org/play*", zone_name = "plumberbench.org" }]
+
+[[containers]]
+class_name = "PlayServer"
+image = "../../Dockerfile"
+image_build_context = "../.."
+instance_type = "standard-1"
+max_instances = 1
+
+[[durable_objects.bindings]]
+name = "PLAY"
+class_name = "PlayServer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PlayServer"]

@@ -35,6 +35,9 @@ SITE = "https://plumberbench.org"
 DESCRIPTION = ("An agent gets a house with hidden plumbing faults, seen only in pictures, and has to look, "
                "test, diagnose and repair. A Harbor benchmark for world models and context.")
 DEMO = "demo.html"
+PLAY = "play/"  # the online play server (online.py), behind worker/online/
+OFFLINE = "play-offline.html"  # what /play shows while that is not deployed
+LOCAL_PLAY = "uvx --from git+https://github.com/valuhaka/plumberbench plumberbench-web"
 ESC = html.escape
 
 # (step, the command that step must be, caption)
@@ -372,14 +375,14 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
     body = f"""
 <section class="slide hero-slide" id="top">
 <nav class="site" aria-label="Site"><a class="brand" href="./">{icon("gnav")}<span>PlumberBench</span></a>
-<span class="links"><a href="{DEMO}">Demo</a><a href="#results">Results</a><a href="{REPO}">Code</a></span></nav>
+<span class="links"><a href="{PLAY}">Play</a><a href="{DEMO}">Demo</a><a href="#results">Results</a><a href="{REPO}">Code</a></span></nav>
 <header class="hero">
   <div class="appicon">{icon("ghero")}</div>
   <h1>What&rsquo;s the next bottleneck?</h1>
   <ol class="strip" aria-label="Four steps from the demo run">
 {strip}
   </ol>
-  <div class="actions"><a class="button primary" href="{DEMO}">Watch a run</a><a class="button" href="{REPO}#run-it">Try the house</a></div>
+  <div class="actions"><a class="button primary" href="{PLAY}">Play it</a><a class="button" href="{DEMO}">Watch a run</a></div>
 </header>
 </section>
 
@@ -426,7 +429,7 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
 <section class="slide end" id="try">
 <div class="appicon small">{icon("gend")}</div>
 <h2>Try it</h2>
-<div class="actions"><a class="button primary" href="{DEMO}">Watch a run</a><a class="button" href="{REPO}#run-it">Play the house</a><a class="button" href="{REPO}">Code</a></div>
+<div class="actions"><a class="button primary" href="{PLAY}">Play it</a><a class="button" href="{DEMO}">Watch a run</a><a class="button" href="{REPO}">Code</a></div>
 <p class="fine">Junction 2026 &middot; AfterQuery, Break the Agent</p>
 </section>
 """
@@ -442,6 +445,19 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
             f'<meta name="twitter:card" content="summary_large_image">\n'
             f'<style>{CSS}</style></head><body>\n<main>{body}</main>\n'
             f'<div class="tip" id="tip" role="tooltip" hidden></div>\n<script>{JS}</script>\n</body></html>\n')
+
+
+
+def offline_page() -> str:
+    """/play while the online server is not deployed: how to play on your own machine."""
+    return (f'<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">\n'
+            f'<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>Play PlumberBench</title>\n'
+            f'<meta name="robots" content="noindex">\n<style>{CSS}</style></head><body>\n<main>\n'
+            f'<section class="slide end">\n<div class="appicon small">{icon("goff")}</div>\n'
+            f'<h2>Play it on your machine</h2>\n<pre class="cmd"><code>{LOCAL_PLAY}</code></pre>\n'
+            f'<p class="fine">Online play is off right now.</p>\n'
+            f'<div class="actions"><a class="button primary" href="/{DEMO}">Watch a run</a>'
+            f'<a class="button" href="/">PlumberBench</a></div>\n</section>\n</main>\n</body></html>\n')
 
 
 CSS = r"""

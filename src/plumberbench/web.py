@@ -21,7 +21,8 @@ windows with a title bar, and the status in a box like its status bar, here
 stacked top to bottom. The palette is water blue. The layout has two columns
 on wide screens and one on narrow ones (tests/test_page_layout.py).
 
-This server is for local play only and is never part of a Harbor task.
+This server is for one local player; online.py serves the same page to many,
+a house each. Neither is ever part of a Harbor task.
 """
 from __future__ import annotations
 
@@ -488,7 +489,7 @@ function apply(p, line, pictureLine = line) {
 async function send(line, quiet) {
   if (!line.trim()) return;
   if (!quiet) { typed.push(line); tpos = typed.length; }
-  const r = await fetch("/command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({line})});
+  const r = await fetch("command", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({line})});
   const p = await r.json();
   if (!quiet) apply(p, line);
   return p;
@@ -598,7 +599,7 @@ $("help").onclick = async () => {
 };
 
 /* ---- start: replay what has happened so far ---- */
-fetch("/history").then(r => r.json()).then(h => {
+fetch("history" + location.search).then(r => r.json()).then(h => {
   h.log.forEach(([line, text]) => { record(line, text); setComplaint(text); });
   const shown = [...h.log].reverse().find(([, text]) => text === h.current.text);
   apply(h.current, undefined, shown && shown[0]);

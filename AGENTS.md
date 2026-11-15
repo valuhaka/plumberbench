@@ -28,8 +28,8 @@ uv run --extra dev pytest -q tests/test_rules.py
 | What the agent reads | `observe.py`, `server.py`, `instruction.md` |
 | Harbor tasks | `tasks.py`, `harbor/smoke-vision/`, `pb_agents/` |
 | Model runs without Docker | `agent.py`, `agents_sdk.py`, `codex_cli.py`, `results.py` |
-| People | `play.py`, `web.py` |
-| Website | `lander.py`, `replay.py`, `demo.py`, `site/`, `worker/` |
+| People | `play.py`, `web.py`, `online.py` (many players, `Dockerfile`) |
+| Website | `lander.py`, `replay.py`, `demo.py`, `site/`, `worker/` (online play: `worker/online/`) |
 
 ## Style
 

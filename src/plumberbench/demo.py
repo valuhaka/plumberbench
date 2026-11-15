@@ -37,6 +37,7 @@ def main() -> int:
     site.mkdir(parents=True, exist_ok=True)
     (site / lander.DEMO).write_text(build(Path(a.log), heading="PlumberBench: the reference plumber at work", note=NOTE))
     (site / "main.html").write_text(lander.build(Path(a.log), site))
+    (site / lander.OFFLINE).write_text(lander.offline_page())
     print(f"Wrote {site / lander.DEMO} and {site / 'main.html'} (score {ep.result()['score']})")
     return 0
 

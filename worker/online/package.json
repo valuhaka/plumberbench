@@ -1,0 +1,13 @@
+{
+  "name": "plumberbench-play",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.3.7"
+  },
+  "devDependencies": {
+    "wrangler": "^4.162.0"
+  }
+}

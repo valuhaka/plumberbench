@@ -199,5 +199,12 @@ def main() -> int:
     return 0
 
 
+def web_main() -> int:
+    """`plumberbench-web`: the same as `plumberbench-play --web`."""
+    import sys
+    sys.argv.insert(1, "--web")
+    return main()
+
+
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -203,8 +203,8 @@ def task_name(level: int, seed: int, mode: str) -> str:
     return f"l{level}-s{seed:03d}-{mode}"
 
 
-def write_task(root: Path, level: int, seed: int, mode: str) -> Path:
-    name = task_name(level, seed, mode)
+def write_task(root: Path, level: int, seed: int, mode: str, name: str | None = None) -> Path:
+    name = name or task_name(level, seed, mode)
     d = root / name
     if d.exists():
         shutil.rmtree(d)
@@ -310,18 +310,44 @@ def check(out: Path, registry_path: Path, levels, seeds, modes) -> list[str]:
     return stale
 
 
+def write_private(out: Path, levels, n: int, modes) -> int:
+    """n houses per level from random nine-digit seeds. Tasks are numbered, not named after the
+    seed (container names come from task names, and an agent can often look its own up); the
+    seeds go to seeds.json beside the task folders, which Harbor never copies into a container."""
+    import secrets
+    out.mkdir(parents=True, exist_ok=True)
+    seeds = {}
+    for level in levels:
+        for i in range(n):
+            seed = 10**8 + secrets.randbelow(9 * 10**8)
+            for mode in modes:
+                name = f"l{level}-p{i:02d}-{mode}"
+                write_task(out, level, seed, mode, name=name)
+                seeds[name] = seed
+    (out / "seeds.json").write_text(json.dumps(seeds, indent=1) + "\n")
+    print(f"Wrote {len(seeds)} private tasks to {out}/ (their seeds: {out}/seeds.json)")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Write Harbor task folders for PlumberBench, and registry.json.")
     ap.add_argument("--out", default="harbor/tasks")
-    ap.add_argument("--registry", default="registry.json", help="where to write registry.json ('' for none)")
+    ap.add_argument("--registry", help="where to write registry.json (default: registry.json for harbor/tasks, "
+                                       "none for any other --out)")
     ap.add_argument("--levels", type=int, nargs="+", default=list(LEVELS))
     ap.add_argument("--seeds", default="0-9", help="e.g. 0-9 or 0,3,7-9")
     ap.add_argument("--mode", nargs="+", choices=("facts", "vision"), default=["facts", "vision"])
+    ap.add_argument("--random", type=int, metavar="N",
+                    help="N houses per level from large random seeds: a private set no agent can look up")
     ap.add_argument("--check", action="store_true", help="only report whether the committed tasks are up to date")
     a = ap.parse_args()
     out, seeds = Path(a.out), seed_range(a.seeds)
+    if a.registry is None:
+        a.registry = "registry.json" if out == Path("harbor/tasks") else ""
+    if a.random:
+        return write_private(out, a.levels, a.random, a.mode)
     if a.check:
-        stale = check(out, Path(a.registry), a.levels, seeds, a.mode)
+        stale = check(out, Path(a.registry or "registry.json"), a.levels, seeds, a.mode)
         if stale:
             print("Out of date (regenerate with python -m plumberbench.tasks):\n  " + "\n  ".join(stale[:20]))
             return 1

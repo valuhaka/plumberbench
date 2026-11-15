@@ -3,6 +3,8 @@ name = "plumberbench"
 version = "0.1.0"
 description = "A house with a hidden plumbing fault: look, test, diagnose and repair without flooding the kitchen."
 requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "MIT"}
 dependencies = [
     "mujoco>=3.2",
     "pillow>=10.1",
@@ -11,6 +13,14 @@ dependencies = [
     "starlette",
     "uvicorn",
 ]
+
+[project.scripts]
+plumberbench-web = "plumberbench.play:web_main"
+plumberbench-play = "plumberbench.play:main"
+
+[project.urls]
+Homepage = "https://plumberbench.org"
+Repository = "https://github.com/valuhaka/plumberbench"
 
 [project.optional-dependencies]
 dev = ["pytest", "mcp", "playwright", "openai-agents>=0.24"]

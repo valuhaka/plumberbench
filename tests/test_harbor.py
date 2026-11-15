@@ -134,3 +134,15 @@ def test_registry_lists_every_task_folder_once():
     assert every == {p.name for p in (root / "harbor" / "tasks").iterdir() if p.is_dir()}
     assert every == {t["name"] for t in by_name["plumberbench-vision"]["tasks"]} | \
         {t["name"] for t in by_name["plumberbench-facts"]["tasks"]}
+
+
+def test_private_tasks_do_not_carry_their_seed_in_the_name(tmp_path):
+    """Container names come from task names, and an agent can often look its own up."""
+    from plumberbench.tasks import write_private
+    write_private(tmp_path, levels=[3], n=2, modes=["vision"])
+    seeds = json.loads((tmp_path / "seeds.json").read_text())
+    assert sorted(seeds) == ["l3-p00-vision", "l3-p01-vision"]
+    for name, seed in seeds.items():
+        assert str(seed) not in name and seed >= 10**8
+        assert f'PB_SEED: "{seed}"' in (tmp_path / name / "environment" / "docker-compose.yaml").read_text()
+        assert str(seed) not in (tmp_path / name / "environment" / "Dockerfile").read_text()

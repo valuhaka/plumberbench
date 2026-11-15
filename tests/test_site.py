@@ -57,7 +57,7 @@ def test_the_page_is_built_from_the_repo_data_with_every_picture(tmp_path):
         assert f"<code>{cmd}</code>" in page
     for kind, _ in lander.FAULTS:
         assert f"<code>{kind}</code>" in page
-    assert f'href="{lander.DEMO}"' in page and f'href="{lander.REPO}#playing-it-yourself"' in page
+    assert f'href="{lander.DEMO}"' in page and f'href="{lander.REPO}#run-it"' in page
     assert 'id="results"' in page and 'id="models"' in page and "Model M" in page
     assert "<b>1 of 2</b>" in page  # one level 3-4 job reported done with a fault left
 
@@ -68,7 +68,7 @@ def test_a_changed_run_fails_the_build(tmp_path):
 
 
 def test_try_the_house_points_at_a_readme_section():
-    assert "\n## Playing it yourself\n" in (ROOT / "README.md").read_text()
+    assert "\n## Run it\n" in (ROOT / "README.md").read_text() and "plumberbench-web" in (ROOT / "README.md").read_text()
 
 
 def test_model_results_collect_runs_without_doubling(tmp_path):

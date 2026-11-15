@@ -379,7 +379,7 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
   <ol class="strip" aria-label="Four steps from the demo run">
 {strip}
   </ol>
-  <div class="actions"><a class="button primary" href="{DEMO}">Watch a run</a><a class="button" href="{REPO}#playing-it-yourself">Try the house</a></div>
+  <div class="actions"><a class="button primary" href="{DEMO}">Watch a run</a><a class="button" href="{REPO}#run-it">Try the house</a></div>
 </header>
 </section>
 
@@ -426,7 +426,7 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
 <section class="slide end" id="try">
 <div class="appicon small">{icon("gend")}</div>
 <h2>Try it</h2>
-<div class="actions"><a class="button primary" href="{DEMO}">Watch a run</a><a class="button" href="{REPO}#playing-it-yourself">Play the house</a><a class="button" href="{REPO}">Code</a></div>
+<div class="actions"><a class="button primary" href="{DEMO}">Watch a run</a><a class="button" href="{REPO}#run-it">Play the house</a><a class="button" href="{REPO}">Code</a></div>
 <p class="fine">Junction 2026 &middot; AfterQuery, Break the Agent</p>
 </section>
 """

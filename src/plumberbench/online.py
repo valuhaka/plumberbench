@@ -5,7 +5,8 @@
 Runs in a container behind the website, at plumberbench.org/play/ (Dockerfile, worker/).
 The page and every reply are the local play page's (web.py, play.handle), so a visitor
 gets exactly what an agent gets. A session cookie holds the visitor's house: a random
-seed at level 1 in pictures-only mode, or ?level=N&seed=N to choose. Reloading the page
+seed at level 1 in pictures-only mode, or ?level=N&seed=N to choose, and ?new=1 for a
+fresh one. Reloading the page
 continues the house until the job is over, then opens a new one. A house closes after
 30 minutes without a move; at most MAX_HOUSES are open, and a new visitor closes the one
 idle longest. Nothing is written to disk.
@@ -99,11 +100,13 @@ def make_app(houses: Houses) -> Starlette:
         sid = request.cookies.get(COOKIE)
         house = houses.get(sid)
         state = house.ep.state if house else None
-        if (state is None or state.done or (level is not None and level != state.level)
+        fresh = request.query_params.get("new") == "1"
+        if (state is None or state.done or fresh or (level is not None and level != state.level)
                 or (seed is not None and seed != state.seed)):
             sid, house = houses.open(level or 1, random.randrange(10**6) if seed is None else seed)
         with house.lock:
-            body = {"log": house.log, "current": payload(house.current)}
+            body = {"log": house.log, "current": payload(house.current), "online": True,
+                    "level": house.ep.state.level}
         response = JSONResponse(body)
         response.set_cookie(COOKIE, sid, max_age=IDLE, httponly=True, samesite="lax", path="/")
         return response

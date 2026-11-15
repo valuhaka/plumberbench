@@ -124,18 +124,34 @@ body { margin: 0; min-height: 100vh; background: #f3f3f2; }
 h1, h2, h3 { margin: 0; font-weight: 700; }
 [hidden] { display: none !important; }
 
-/* Top bar */
-.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  min-height: var(--topbar-h); padding: 0.35rem var(--gutter); background: var(--bar); border-bottom: 1px solid var(--line); }
-.brand { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #222; }
+/* Top: the pitch's rounded bar, then the job as a card */
+.top { max-width: 1320px; margin: 0 auto; padding: 14px var(--gutter) 0; display: grid; gap: 12px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; height: 40px; padding: 0 0 0 14px;
+  background: var(--bar); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.topbar .links { display: flex; align-self: stretch; align-items: stretch; }
+.topbar .links a, .topbar .links button { display: flex; align-items: center; padding: 0 16px; font-size: 13.5px; color: var(--ink);
+  text-decoration: none; border: 0; border-radius: 0; background: none; }
+.topbar .links a:hover, .topbar .links button:hover { background: #f2f4f7; }
+.topbar .links a.here { color: #1d4f91; background: #eaf2fc; font-weight: 700; }
+.topbar .levels { display: flex; align-items: center; gap: 0; color: var(--muted); font-size: 13px; padding-left: 8px; }
+.topbar .levels a { padding: 0 10px; }
+.brand { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: var(--ink); text-decoration: none; }
+@media (max-width: 600px) {
+  .top { padding-top: 10px; }
+  .topbar { padding-left: 10px; }
+  .brand span, .topbar .levels > :not(a) { display: none; }
+  .topbar .levels { font-size: 0; padding-left: 0; }
+  .topbar .levels a { font-size: 13.5px; padding: 0 9px; }
+  .topbar .links a, .topbar .links button { padding: 0 9px; }
+}
 .brand svg { width: 22px; height: 22px; display: block; }
 
 /* The job: the complaint, loud and clear, and the button to report it done */
 .job { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; padding: 0.85rem var(--gutter);
-  color: var(--ink); background: #eaf2fc; border-bottom: 1px solid #c9dcf3; }
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
 .job-text { flex: 1 1 22rem; min-width: 0; }
 /* Pinned under the top bar where the screen has room for it; on phones it scrolls away. */
-@media (min-width: 961px) and (min-height: 700px) { .job { position: sticky; top: var(--topbar-h); z-index: 15; } }
+@media (min-width: 961px) and (min-height: 700px) { .job { position: sticky; top: 8px; z-index: 15; box-shadow: 0 2px 10px rgb(0 0 0 / 0.06); } }
 .job-label { font-size: 12px; color: var(--muted); }
 .complaint { font-size: clamp(1.1rem, 1rem + 0.8vw, 1.5rem); font-weight: 700; line-height: 1.3; margin: 0.1rem 0 0; }
 
@@ -143,7 +159,7 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
    One column on narrow screens: status first, then the picture, then the controls. */
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(270px, 360px); grid-template-rows: auto 1fr;
   grid-template-areas: "view info" "view controls"; gap: 1.25rem 1.5rem; align-items: start;
-  max-width: 1320px; margin: 0 auto; padding: 1.4rem var(--gutter) 2rem; }
+  max-width: 1320px; margin: 0 auto; padding: 12px var(--gutter) 2rem; }
 .view-col { grid-area: view; min-width: 0; width: 100%; justify-self: center;
   /* The picture shrinks with the window's height so the output under it stays in view. */
   max-width: min(800px, max(440px, calc((100dvh - 23rem) * 4 / 3))); }
@@ -154,7 +170,7 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
   .layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "info" "view" "controls"; gap: 1rem; }
   .view-col { max-width: 800px; }
 }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 1rem 1.1rem; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem; }
 .panel + .panel { margin-top: 1rem; }
 .panel h2 { font-size: 13px; color: var(--muted); margin-bottom: 0.65rem; }
 .panel h2.sub { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid #e3e3e3; }
@@ -196,7 +212,7 @@ select { font: 13px var(--font); padding: 0.4rem 0.5rem; border: 1px solid var(-
 select:focus-visible, input:focus-visible { outline: 3px solid var(--select); outline-offset: 1px; }
 
 /* Status: an inset grouped list, items stacked top to bottom */
-.infobox { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 13px; color: var(--muted); }
+.infobox { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 13px; color: var(--muted); }
 .infobox > div { display: grid; grid-template-columns: 6.5rem 1fr; align-items: center; gap: 0.6rem; padding: 0.5rem 0.9rem; }
 .infobox > div + div { border-top: 1px solid #e3e3e3; }
 .infobox b { color: var(--ink); font-weight: 700; }
@@ -229,7 +245,7 @@ select:focus-visible, input:focus-visible { outline: 3px solid var(--select); ou
 
 /* Output: plain monospace output, the command line at its foot, history in the corner.
    A click anywhere in it puts the cursor on the command line. */
-.console { margin-top: 1.4rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+.console { margin-top: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
   font: 12.5px/1.55 var(--mono); cursor: text; }
 .console:focus-within { border-color: var(--select); }
 .console-head { display: flex; justify-content: flex-end; padding: 0.2rem 0.4rem 0; font-family: var(--font); }
@@ -284,7 +300,11 @@ label.check span { color: var(--muted); font-size: 12.5px; }
 .rules pre, pre.cmds { background: #f4f4f4; border: 1px solid var(--line); border-radius: 4px; padding: 0.6rem 0.75rem; overflow: auto; font: 12px/1.5 var(--mono); max-width: 100%; }
 .help-ui { margin: 0; padding-left: 1.2rem; } .help-ui li { margin: 0.25rem 0; }
 </style></head><body>
-<header class="topbar"><div class="brand">{ICON}<span>PlumberBench</span></div><button class="secondary" id="help">Help</button></header>
+<div class="top">
+<header class="topbar"><a class="brand" href="https://plumberbench.org/">{ICON}<span>PlumberBench</span></a>
+  <nav class="links" aria-label="Game"><span class="levels" id="levels" hidden>Level
+    <a href="?level=1">1</a><a href="?level=2">2</a><a href="?level=3">3</a><a href="?level=4">4</a></span>
+    <a href="?new=1" id="newhouse" hidden>New house</a><button id="help">Help</button></nav></header>
 
 <section class="job" aria-live="polite">
   <div class="job-text">
@@ -293,6 +313,7 @@ label.check span { color: var(--muted); font-size: 12.5px; }
   </div>
   <button class="on-dark" id="finish">Report job finished</button>
 </section>
+</div>
 
 <main class="layout">
   <section class="view-col">
@@ -599,6 +620,12 @@ $("help").onclick = async () => {
 
 /* ---- start: replay what has happened so far ---- */
 fetch("history" + location.search).then(r => r.json()).then(h => {
+  if (h.online) {  /* online play: pick a level or a fresh house; locally there is one house */
+    $("levels").hidden = $("newhouse").hidden = false;
+    $("newhouse").href = "?level=" + h.level + "&new=1";
+    $("levels").querySelectorAll("a").forEach(a => a.classList.toggle("here", a.textContent === String(h.level)));
+    if (/[?&]new=1/.test(location.search)) history.replaceState(null, "", "?level=" + h.level);
+  }
   h.log.forEach(([line, text]) => { record(line, text); setComplaint(text); });
   const shown = [...h.log].reverse().find(([, text]) => text === h.current.text);
   apply(h.current, undefined, shown && shown[0]);

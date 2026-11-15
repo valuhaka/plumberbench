@@ -18,9 +18,8 @@ from . import lander
 from .replay import build
 from .solver import Solver
 
-NOTE = ("A house with a hidden plumbing fault. The tenant blames the kitchen trap; the real faults are "
-        "elsewhere. This is the scripted reference plumber, seeing what an agent sees: one picture per step "
-        "and the text below it. Step with the arrow keys or the slider.")
+NOTE = ("The tenant blames the kitchen trap; the real faults are elsewhere. One picture per step and the "
+        "text under it, exactly what an agent sees. Step with the arrow keys or the slider.")
 
 
 def main() -> int:
@@ -35,7 +34,7 @@ def main() -> int:
     Solver(lambda tool, args: ep.act(tool, **args).text, facts_source=lambda: facts(ep.state)).run()
     site = Path(a.site)
     site.mkdir(parents=True, exist_ok=True)
-    (site / lander.DEMO).write_text(build(Path(a.log), heading="PlumberBench: the reference plumber at work", note=NOTE))
+    (site / lander.DEMO).write_text(build(Path(a.log), heading="The reference plumber at work", note=NOTE, site=True))
     (site / "main.html").write_text(lander.build(Path(a.log), site))
     (site / lander.OFFLINE).write_text(lander.offline_page())
     print(f"Wrote {site / lander.DEMO} and {site / 'main.html'} (score {ep.result()['score']})")

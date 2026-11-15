@@ -47,6 +47,15 @@ def test_asking_for_another_house_opens_it():
     assert len(log) == 1 and "time 0/65" in log[0][1]
 
 
+def test_new_opens_a_fresh_house_and_the_page_learns_the_level():
+    c = client()
+    first = c.get("/history?level=2&seed=8").json()
+    assert first["online"] and first["level"] == 2
+    c.post("/command", json={"line": "go bathroom"})
+    again = c.get("/history?level=2&new=1").json()
+    assert len(again["log"]) == 1 and again["level"] == 2
+
+
 def test_a_finished_house_gives_way_to_a_new_one():
     c = client()
     c.get("/history?level=1&seed=6")

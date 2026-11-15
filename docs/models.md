@@ -32,3 +32,20 @@ uv run -m plumberbench.demo
 ```
 
 `results/models/<label>.json` collects a model's jobs across runs (adding a run twice replaces it). `show` prints accuracy and spend per model; `demo` redraws the site.
+
+## Agents that bring their own loop
+
+Any agent with a shell can play through the online play server, seeing only its text and pictures. This is how the Claude models on the site were run, as Claude Code subagents:
+
+```bash
+uv run -m plumberbench.online --port 8080
+python scripts/pb_open.py opus-l3 3 0
+```
+
+The agent is told to act only through `scripts/pb opus-l3 COMMAND`, one command per shell call, and to look at each `PICTURE:` the client prints; it never sees the seed. Each job folder keeps the log, the pictures and the result:
+
+```bash
+uv run -m plumberbench.results add-client jobs/opus-l1 jobs/opus-l3 jobs/opus-l4 --label "Claude Opus 5.5" --harness "Claude Code"
+```
+
+This client reports no token counts, so those rows show none. Its loop is not OpenCode's either: confirm through Harbor before comparing models across harnesses.

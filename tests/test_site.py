@@ -58,8 +58,10 @@ def test_the_page_is_built_from_the_repo_data_with_every_picture(tmp_path):
     for kind, _ in lander.FAULTS:
         assert f"<code>{kind}</code>" in page
     assert f'href="{lander.DEMO}"' in page and f'href="{lander.PLAY}"' in page
-    assert 'id="results"' in page and 'id="models"' in page and "Model M" in page
-    assert "<b>1 of 2</b>" in page  # one level 3-4 job reported done with a fault left
+    assert 'id="results"' in page and "Model M" in page
+    for _, _, _, url in lander.FACTS + [lander.IMO]:
+        assert f'href="{url}"' in page  # every motivating number links to its source
+    assert "<td>1 of 2</td><td>1</td>" in page  # every fault fixed in 1 of 2 houses; 1 done with a fault left
 
 
 def test_a_changed_run_fails_the_build(tmp_path):
@@ -94,8 +96,15 @@ def test_the_site_shows_the_committed_results():
     """The numbers on the committed page are the committed data's."""
     page = (ROOT / "site" / "main.html").read_text()
     _, models = lander.load_results(ROOT / "results")
-    early, total = lander.early_finish(models)
-    if total:
-        assert f"<b>{early} of {total}</b>" in page
-    for m in models:
+    for m, rows in lander.on_shared(models):
         assert m["label"] in page
+        for lv in {r["level"] for r in rows}:
+            mean = sum(r["score"] for r in rows if r["level"] == lv) / sum(1 for r in rows if r["level"] == lv)
+            assert f"<td>{mean:.2f}</td>" in page
+
+
+def test_the_chart_compares_only_houses_every_model_played():
+    a = {"label": "A", "rows": [{"level": 1, "seed": 0, "mode": "m", "score": 1.0}, {"level": 1, "seed": 1, "mode": "m", "score": 0.0}]}
+    b = {"label": "B", "rows": [{"level": 1, "seed": 0, "mode": "m", "score": 0.5}]}
+    assert lander.shared_houses([a, b]) == {(1, 0, "m")}
+    assert [len(rows) for _, rows in lander.on_shared([a, b])] == [1, 1]

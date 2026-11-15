@@ -1,0 +1,58 @@
+{
+ "label": "Claude Opus 5.5",
+ "harness": "Claude Code",
+ "note": "Claude Code subagent, played through scripts/pb against the online play server (pictures only); no token counts.",
+ "rows": [
+  {
+   "level": 1,
+   "seed": 0,
+   "mode": "pictures only",
+   "score": 0.9442,
+   "repair": 1.0,
+   "faults": "1/1",
+   "damage": 3,
+   "time": "15/45",
+   "free_actions": 7,
+   "diagnosis_correct": true,
+   "finished": true,
+   "stop": "finished",
+   "tool_calls": 16,
+   "seconds": 58.0,
+   "run": "opus-l1"
+  },
+  {
+   "level": 3,
+   "seed": 0,
+   "mode": "pictures only",
+   "score": 0.9291,
+   "repair": 1.0,
+   "faults": "2/2",
+   "damage": 0,
+   "time": "39/55",
+   "free_actions": 10,
+   "diagnosis_correct": true,
+   "finished": true,
+   "stop": "finished",
+   "tool_calls": 29,
+   "seconds": 115.4,
+   "run": "opus-l3"
+  },
+  {
+   "level": 4,
+   "seed": 0,
+   "mode": "pictures only",
+   "score": 0.9312,
+   "repair": 1.0,
+   "faults": "3/3",
+   "damage": 2,
+   "time": "35/65",
+   "free_actions": 12,
+   "diagnosis_correct": true,
+   "finished": true,
+   "stop": "finished",
+   "tool_calls": 30,
+   "seconds": 138.5,
+   "run": "opus-l4"
+  }
+ ]
+}

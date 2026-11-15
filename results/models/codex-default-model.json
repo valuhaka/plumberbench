@@ -1,5 +1,6 @@
 {
  "label": "Codex, default model",
+ "harness": "Codex CLI",
  "note": "Codex CLI signed in with a ChatGPT plan; Codex chose the model and the run did not record which.",
  "rows": [
   {

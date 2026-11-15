@@ -105,41 +105,39 @@ PAGE = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>PlumberBench</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-/* The pitch site's look: graphite, a grey gradient bar, Lucida Grande, small radii, white-matted pictures. */
+/* The pitch site's look: light flat surfaces, one blue for actions and selection, Lucida Grande. */
 :root {
-  --ink: #1f1f1f; --muted: #626262; --line: #c4c4c4; --line-strong: #8c8c8c; --surface: #ffffff;
-  --graphite: #6e7783; --graphite-dark: #4f5660; --graphite-light: #a3abb6; --select: #7fb2ef;
+  --ink: #1f2328; --muted: #5f6670; --line: #d9dbde; --line-strong: #b9bcc1; --surface: #ffffff;
+  --graphite: #2a6fcb; --graphite-dark: #255fae; --graphite-light: #9cc0ec; --select: #9cc0ec;
   --danger: #b42318; --ok: #18794e;
-  --font: "Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", Geneva, Verdana, sans-serif;
-  --mono: Monaco, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+  --font: "Lucida Grande", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono: Menlo, Monaco, "DejaVu Sans Mono", Consolas, monospace;
   --gutter: 1.5rem; --topbar-h: 3.1rem; --r: 6px;
-  --btn: linear-gradient(#fdfdfd, #ececec); --btn-down: linear-gradient(#e4e4e4, #f2f2f2);
-  --btn-primary: linear-gradient(#97a0ab, #6e7783); --btn-primary-down: linear-gradient(#6e7783, #8a939e);
-  --bar: linear-gradient(#f4f4f4, #d2d2d2 50%, #c4c4c4 51%, #dadada);
+  --btn: #ffffff; --btn-down: #eef0f3;
+  --btn-primary: #2a6fcb; --btn-primary-down: #255fae;
+  --bar: #ffffff;
   font-family: var(--font); font-size: 14px; color: var(--ink); color-scheme: light;
-  background: #e3e3e3;
+  background: #f3f3f2;
 }
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; background: linear-gradient(#f4f4f4, #e3e3e3 420px) no-repeat, #e3e3e3; }
+body { margin: 0; min-height: 100vh; background: #f3f3f2; }
 h1, h2, h3 { margin: 0; font-weight: 700; }
 [hidden] { display: none !important; }
 
-/* Top bar: the pitch site's grey bar */
+/* Top bar */
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  min-height: var(--topbar-h); padding: 0.35rem var(--gutter); background: var(--bar); border-bottom: 1px solid var(--line-strong);
-  text-shadow: 0 1px 0 rgb(255 255 255 / 0.7); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+  min-height: var(--topbar-h); padding: 0.35rem var(--gutter); background: var(--bar); border-bottom: 1px solid var(--line); }
 .brand { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #222; }
 .brand svg { width: 22px; height: 22px; display: block; }
 
 /* The job: the complaint, loud and clear, and the button to report it done */
 .job { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; padding: 0.85rem var(--gutter);
-  color: #fff; background: linear-gradient(#5d6570, var(--graphite-dark)); border-bottom: 1px solid #353a41; }
+  color: var(--ink); background: #eaf2fc; border-bottom: 1px solid #c9dcf3; }
 .job-text { flex: 1 1 22rem; min-width: 0; }
 /* Pinned under the top bar where the screen has room for it; on phones it scrolls away. */
 @media (min-width: 961px) and (min-height: 700px) { .job { position: sticky; top: var(--topbar-h); z-index: 15; } }
-.job-label { font-size: 12px; color: #d7dce2; }
-.complaint { font-size: clamp(1.1rem, 1rem + 0.8vw, 1.5rem); font-weight: 700; line-height: 1.3; margin: 0.1rem 0 0;
-  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.3); }
+.job-label { font-size: 12px; color: var(--muted); }
+.complaint { font-size: clamp(1.1rem, 1rem + 0.8vw, 1.5rem); font-weight: 700; line-height: 1.3; margin: 0.1rem 0 0; }
 
 /* Layout: picture and output on the left; status, moves and controls on the right.
    One column on narrow screens: status first, then the picture, then the controls. */
@@ -161,22 +159,23 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
 .panel h2 { font-size: 13px; color: var(--muted); margin-bottom: 0.65rem; }
 .panel h2.sub { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid #e3e3e3; }
 
-/* Buttons: the classic push button; graphite for the main action */
+/* Buttons: flat, blue for the main action */
 button { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; font: 13px/1.2 var(--font); color: #111;
-  cursor: pointer; padding: 0.5rem 1.1rem; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--btn); }
+  cursor: pointer; padding: 0.5rem 1.1rem; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--btn); }
+button:hover:not(:disabled) { background: #f4f5f7; }
 button:active:not(:disabled) { background: var(--btn-down); }
 button:focus-visible { outline: 3px solid var(--select); outline-offset: 1px; }
 button:disabled { opacity: 0.5; cursor: default; }
-.primary { background: var(--btn-primary); border-color: #565e68; color: #fff; }
+.primary, .primary:hover:not(:disabled) { background: var(--btn-primary); border-color: #255fae; color: #fff; }
 .primary:active:not(:disabled) { background: var(--btn-primary-down); }
 .secondary:hover:not(:disabled) { border-color: #6f6f6f; }
-.on-dark { background: linear-gradient(#ffffff, #e6e6e6); border-color: #2f343a; color: #1f1f1f; font-weight: 700; font-size: 14px;
+.on-dark, .on-dark:hover:not(:disabled) { background: var(--btn-primary); border-color: #255fae; color: #fff; font-weight: 700; font-size: 14px;
   padding: 0.65rem 1.3rem; white-space: nowrap; }
 button.link, button.plain, .close { background: none; border: 0; border-radius: 0; padding: 0.15rem 0.25rem; }
 button.link { color: #2a5ea3; font-size: 12px; }
 button.link:hover { text-decoration: underline; }
 
-/* Move: segmented controls, the current room and view selected in graphite */
+/* Move: segmented controls, the current room and view selected in light blue */
 .segments, .choice { display: flex; }
 .segments { margin-bottom: 0.75rem; }
 .segments button, .choice button { border-radius: 0; margin-left: -1px; }
@@ -185,9 +184,9 @@ button.link:hover { text-decoration: underline; }
 .segments button { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 0.1rem; font-size: 13px; font-weight: 700;
   line-height: 1.2; padding: 0.6rem 0.4rem 0.55rem; text-align: center; }
 .segments button small { font-size: 11px; font-weight: 400; color: var(--muted); }
-.segments button.here, .choice button.on { position: relative; z-index: 1; background: var(--btn-primary); border-color: #565e68;
-  color: #fff; text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25); cursor: default; opacity: 1; }
-.segments button.here small { color: #e6e9ed; }
+.segments button.here, .choice button.on, .segments button.here:hover, .choice button.on:hover { position: relative; z-index: 1;
+  background: #eaf2fc; border-color: #9cc0ec; color: #1d4f91; cursor: default; opacity: 1; }
+.segments button.here small { color: #3f6aa5; }
 .choice button { padding: 0.45rem 0.8rem; }
 .choice button.on { cursor: pointer; }
 .row { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem; }
@@ -202,7 +201,7 @@ select:focus-visible, input:focus-visible { outline: 3px solid var(--select); ou
 .infobox > div + div { border-top: 1px solid #e3e3e3; }
 .infobox b { color: var(--ink); font-weight: 700; }
 .infobox .val { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
-.meter { flex: 1; max-width: 140px; height: 8px; border-radius: 4px; background: #e3e3e3; box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.18); overflow: hidden; }
+.meter { flex: 1; max-width: 140px; height: 8px; border-radius: 4px; background: #e8e9eb; overflow: hidden; }
 .meter > span { height: 100%; width: 0; background: var(--graphite); }
 .meter.damage > span { background: var(--danger); }
 @media (max-width: 960px) {
@@ -211,20 +210,20 @@ select:focus-visible, input:focus-visible { outline: 3px solid var(--select); ou
   .infobox > div + div { border-top: 0; }
 }
 
-/* The picture: a white mat (drawn with shadows, so the clickable tags stay aligned) */
-#stage { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #0b0d10;
-  box-shadow: 0 0 0 4px #fff, 0 0 0 5px #b3b3b3, 0 3px 8px 5px rgb(0 0 0 / 0.12); }
+/* The picture: a thin frame (drawn with a shadow, so the clickable tags stay aligned) */
+#stage { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #0b0d10; border-radius: 6px; overflow: hidden;
+  box-shadow: 0 0 0 1px var(--line); }
 #view { width: 100%; height: 100%; display: block; }
 .hot { position: absolute; padding: 0; outline: 2px solid transparent; cursor: pointer; }
 .hot:hover, .hot:focus-visible { outline: 2px solid var(--select); outline-offset: 0; background: rgb(127 178 239 / 0.18); }
 /* After inspect the picture is a close-up; this returns to the whole view (look, which takes no time). */
 .back { position: absolute; z-index: 4; right: 10px; bottom: 10px; font-weight: 700; }
-.menu { position: absolute; z-index: 5; width: min(260px, calc(100% - 16px)); background: var(--surface); border: 1px solid #8a8a8a;
-  border-radius: var(--r); overflow: hidden; box-shadow: 0 8px 24px rgb(0 0 0 / 0.35); }
+.menu { position: absolute; z-index: 5; width: min(260px, calc(100% - 16px)); background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgb(0 0 0 / 0.18); }
 .menu .titlebar { padding: 0.4rem 0.75rem; }
 .menu .item { display: flex; justify-content: space-between; gap: 1rem; width: 100%; padding: 0.5rem 0.75rem; text-align: left;
   border-top: 1px solid #e3e3e3; font-size: 13px; }
-.menu .item:hover, .menu .item:focus-visible { background: linear-gradient(#6f9bd4, #3f73b8); color: #fff; outline: none; }
+.menu .item:hover, .menu .item:focus-visible { background: var(--btn-primary); color: #fff; outline: none; }
 .menu .item span:last-child { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .menu .item:hover span:last-child, .menu .item:focus-visible span:last-child { color: #e6eef8; }
 
@@ -245,7 +244,7 @@ select:focus-visible, input:focus-visible { outline: 3px solid var(--select); ou
 
 /* Result: the score large, every other fact in a table */
 .result .big { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.25rem; }
-.result .score { font-size: 4rem; font-weight: 700; line-height: 1; color: #3a3f46; }
+.result .score { font-size: 4rem; font-weight: 700; line-height: 1; color: var(--ink); }
 .result .of { color: var(--muted); font-size: 14px; }
 .result .verdict { margin: 0 0 1rem; font-weight: 700; }
 table.facts { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -261,10 +260,10 @@ details.raw pre { max-height: 360px; overflow: auto; background: #f4f4f4; border
 /* Dialogs: a sheet with a light title bar */
 .backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / 0.3); }
 .modal { width: 100%; max-width: 640px; max-height: calc(100dvh - 2rem); display: flex; flex-direction: column; min-width: 0;
-  background: var(--surface); border: 1px solid #8a8a8a; border-radius: 8px; overflow: hidden; box-shadow: 0 16px 48px rgb(0 0 0 / 0.4); }
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; box-shadow: 0 16px 48px rgb(0 0 0 / 0.2); }
 .modal.wide { max-width: 860px; }
 .titlebar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.45rem 0.6rem 0.45rem 1.1rem;
-  background: var(--bar); border-bottom: 1px solid var(--line-strong); text-shadow: 0 1px 0 rgb(255 255 255 / 0.7); }
+  background: #f6f7f8; border-bottom: 1px solid var(--line); }
 .titlebar h2 { font-size: 13px; color: #222; }
 .close { font-size: 1.3rem; line-height: 1; color: var(--muted); padding: 0.1rem 0.4rem; }
 .modal-body { padding: 1.1rem 1.4rem 1.4rem; overflow-y: auto; display: grid; grid-auto-rows: max-content; gap: 0.85rem; min-width: 0; }

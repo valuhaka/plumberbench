@@ -1,22 +1,23 @@
-"""The website's front page: the pitch, one screen per section, told in figures.
+"""The website's front page: the pitch, told in figures.
 
 Built by `python -m plumberbench.demo`, from data in the repo only:
-    hero frames     the demo run, each captioned with the command that made it, checked
+    run frames      the demo run, each captioned with the command that made it, checked
                     against the run's log (the build fails rather than mislabel a frame)
-    pictures        rendered here from the simulator: the five views, each fault's part up
-                    close, and one action's before and after
-    score chart     results/ladder.json (python -m plumberbench.ladder --json)
-    models chart    every results/models/*.json (python -m plumberbench.results add ...)
-    level rows      generate.LEVELS; the reward bar, judge's weights; the tools, play.COMMANDS
+    pictures        rendered here from the simulator: a blocked trap that looks fine, one
+                    test's before and after, a leak's puddle, and each fault's part up close
+    models chart    every results/models/*.json (python -m plumberbench.results add ...),
+                    on the houses every model played
+    validity tiles  results/ladder.json (python -m plumberbench.ladder --json)
+    reward bar      the judge's weights
 
-Pictures go to site/img/. When presenting, the arrow keys step from section to section.
+The motivating numbers are cited in FACTS. Pictures go to site/img/. When presenting, the
+arrow keys step from section to section.
 """
 from __future__ import annotations
 
 import html
 import io
 import json
-import random
 import statistics
 from pathlib import Path
 from urllib.parse import quote
@@ -28,12 +29,11 @@ from .icon import icon
 from .judge import REGRESSION_PENALTY, W_DRY, W_NAMED, W_QUICK, W_REPAIR
 from .play import COMMANDS
 from .results import stats
-from .world import VIEWS
 
 REPO = "https://github.com/valuhaka/plumberbench"
 SITE = "https://plumberbench.org"
-DESCRIPTION = ("An agent gets a house with hidden plumbing faults, seen only in pictures, and has to look, "
-               "test, diagnose and repair. A Harbor benchmark for world models and context.")
+DESCRIPTION = ("AI can solve olympiad maths but can't fix a leaky pipe. In PlumberBench an agent gets a house "
+               "with hidden plumbing faults, seen only in pictures, and has to look, test, diagnose and repair.")
 DEMO = "demo.html"
 PLAY = "play/"  # the online play server (online.py), behind worker/online/
 OFFLINE = "play-offline.html"  # what /play shows while that is not deployed
@@ -61,13 +61,26 @@ FAULTS = [
 # World model: a blocked kitchen trap, before and after running the tap.
 PREDICT = ({"type": "trap_clog", "id": "trap.kitchen"}, "run_tap", {"side": "cold", "ticks": 3})
 
-# Chart colours: the validated categorical slots 1-3, and grey for the exploits (all at zero).
+# Baselines are drawn in neutral ink; the models take the validated categorical slots in order.
 SERIES = [
-    ("reference solver", "Reference plumber", "#2a78d6"),
-    ("service all, never test", "Services everything, never tests", "#eb6834"),
-    ("exploits", "Five exploits", "#9a9a9a"),
+    ("reference solver", "Reference plumber", "#3d434b"),
+    ("service all, never test", "Services everything, never tests", "#9a9a9a"),
 ]
-MODEL_COLORS = ["#1baf7a", "#eda100", "#e87ba4"]  # categorical slots 3-5, after the two policies
+MODEL_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
+
+# The world the benchmark is for, with sources: (number, what it counts, source, url).
+IMO = ("35/42", "AI's gold-medal score at the 2025 International Mathematical Olympiad",
+       "The New York Times, via The Star",
+       "https://www.thestar.com.my/tech/tech-news/2025/07/24/google-ai-system-wins-gold-medal-in-international-mathematical-olympiad")
+FACTS = [
+    ("1 trillion", "gallons of water lost to household leaks in the US every year", "US EPA",
+     "https://www.epa.gov/node/288682"),
+    ("550,000", "plumbers short in the US, forecast for 2026", "PM Magazine, on a LIXIL study",
+     "https://www.pmmag.com/articles/107673-plumbing-industry-adds-442b-to-us-economy-faces-550-000-worker-shortage"),
+    ("1.7 million", "skilled-trade job openings in the US every year through 2035",
+     "Fortune, on JFF and the Burning Glass Institute",
+     "https://fortune.com/2026/10/09/leaky-pipeline-1-7-million-trade-jobs-open-annually-2035/"),
+]
 REWARD = [("Base", W_REPAIR, "#2a78d6", "#ffffff"), ("Dry floor", W_DRY, "#eb6834", "#ffffff"),
           ("Time left", W_QUICK, "#1baf7a", "#ffffff"), ("Right diagnosis", W_NAMED, "#eda100", "#0b0b0b")]
 
@@ -110,14 +123,6 @@ def hero_frames(log_dir: Path, img: Path) -> list[dict]:
 
 
 def rendered_pictures(img: Path) -> dict:
-    views = []
-    s = generate(7, 3)
-    for room, names in VIEWS.items():
-        for view in names:
-            s.room, s.view = room, view
-            name = f"view-{room}-{view}.jpg"
-            w, h = _save(_render(s), img / name, 320)
-            views.append({"src": f"img/{name}", "w": w, "h": h, "alt": f"{room}, {view.replace('_', ' ')}"})
     faults = []
     for kind, fault in FAULTS:
         s = generate(7, 1, faults=[fault])
@@ -129,11 +134,19 @@ def rendered_pictures(img: Path) -> dict:
     from . import sim
     fault, tool, args = PREDICT
     s = generate(7, 1, faults=[fault])
+    s.room, s.view = "kitchen", "under_sink"
+    hidden = _save(_render(s), img / "hidden.jpg", 400)
     s.room, s.view = "kitchen", "counter"
     before = _save(_render(s), img / "predict-before.jpg", 400)
     sim.apply(s, tool, args)
     after = _save(_render(s), img / "predict-after.jpg", 400)
-    return {"views": views, "faults": faults,
+    s = generate(7, 1, faults=[{"type": "drain_leak", "id": "jtail.kitchen", "cause": "loose"}])
+    s.room, s.view = "kitchen", "under_sink"
+    for _ in range(2):
+        sim.apply(s, "run_tap", {"side": "both", "ticks": 5})
+    puddle = _save(_render(s), img / "puddle.jpg", 400)
+    return {"faults": faults, "hidden": ("img/hidden.jpg", *hidden),
+            "puddle": ("img/puddle.jpg", *puddle), "damage": s.damage,
             "predict": {"cmd": command(tool, args), "before": ("img/predict-before.jpg", *before),
                         "after": ("img/predict-after.jpg", *after)}}
 
@@ -146,95 +159,17 @@ def load_results(results: Path) -> tuple[dict, list[dict]]:
     return ladder, models
 
 
-def groups(ladder: dict) -> dict:
-    """{level: {series key: [scores]}}, the five exploits pooled."""
-    exploits = [k for k in ladder["scores"] if k not in ("reference solver", "service all, never test")]
-    out = {}
-    for lv in ladder["levels"]:
-        key = str(lv)
-        out[lv] = {"reference solver": ladder["scores"]["reference solver"][key],
-                   "service all, never test": ladder["scores"]["service all, never test"][key],
-                   "exploits": [x for k in exploits for x in ladder["scores"][k][key]]}
-    return out
-
-
 # ------------------------------------------------------------------ figures
 
-def results_chart(ladder: dict) -> str:
-    """Every house's score: one column per policy within each level, the mean as a dark tick,
-    and under the plot the rows that say how each level is harder."""
-    data = groups(ladder)
-    levels = ladder["levels"]
-    left, right, top, plot_h, width = 132, 16, 14, 270, 960
-    band = (width - left - right) / len(levels)
-    slot_x = {"reference solver": 0.22, "service all, never test": 0.5, "exploits": 0.78}
-    y = lambda v: top + (1 - v) * plot_h
-    rnd = random.Random(7)
-    colors = {k: c for k, _, c in SERIES}
-    names = {k: n for k, n, _ in SERIES}
-    parts = []
-    for v in (0, 0.25, 0.5, 0.75, 1.0):
-        parts.append(f'<line x1="{left}" x2="{width - right}" y1="{y(v):.1f}" y2="{y(v):.1f}" class="grid"/>'
-                     f'<text x="{left - 8}" y="{y(v) + 4:.1f}" class="tick" text-anchor="end">{v:g}</text>')
-    for i, lv in enumerate(levels):
-        x0 = left + i * band
-        for key, scores in data[lv].items():
-            cx = x0 + slot_x[key] * band
-            jitter = band * 0.085
-            for sc in scores:
-                dx = rnd.uniform(-jitter, jitter)
-                parts.append(f'<circle cx="{cx + dx:.1f}" cy="{y(sc):.1f}" r="2.6" fill="{colors[key]}" '
-                             f'fill-opacity="0.55"/>')
-            mean = statistics.mean(scores)
-            parts.append(f'<line x1="{cx - jitter - 4:.1f}" x2="{cx + jitter + 4:.1f}" y1="{y(mean):.1f}" '
-                         f'y2="{y(mean):.1f}" class="mean"/>')
-            tip = (f"{mean:.2f} mean\n{names[key]}, level {lv}\n"
-                   f"lowest {min(scores):.2f}, highest {max(scores):.2f}, "
-                   f"{len(scores)} houses")
-            parts.append(f'<rect x="{cx - band * 0.13:.1f}" y="{top}" width="{band * 0.26:.1f}" height="{plot_h}" '
-                         f'class="hit" tabindex="0" data-tip="{ESC(tip)}" aria-label="{ESC(tip.replace(chr(10), ", "))}"/>')
-        parts.append(f'<text x="{x0 + band / 2:.1f}" y="{top + plot_h + 22}" class="lv" text-anchor="middle">'
-                     f'Level {lv}</text>')
-    # How each level is harder, aligned with the columns above.
-    rows = [("Faults", "faults", "dots"), ("Hidden behind another", "masked", "check"),
-            ("Vague complaint", "vague", "check"), ("Decoys", "decoys", "rings"), ("Time budget", "budget", "number")]
-    ry = top + plot_h + 52
-    for r, (label, field, kind) in enumerate(rows):
-        yy = ry + r * 22
-        parts.append(f'<text x="{left - 8}" y="{yy + 4}" class="row" text-anchor="end">{label}</text>')
-        if r:
-            parts.append(f'<line x1="8" x2="{width - right}" y1="{yy - 11}" y2="{yy - 11}" class="grid"/>')
-        for i, lv in enumerate(levels):
-            cx = left + i * band + band / 2
-            value = LEVELS[lv][field]
-            if kind in ("dots", "rings"):
-                for k in range(value):
-                    px = cx + (k - (value - 1) / 2) * 13
-                    fill = "#3a3f46" if kind == "dots" else "#ffffff"
-                    parts.append(f'<circle cx="{px:.1f}" cy="{yy}" r="4.5" fill="{fill}" stroke="#3a3f46" stroke-width="1.5"/>')
-                if value == 0:
-                    parts.append(f'<text x="{cx:.1f}" y="{yy + 4}" class="row dim" text-anchor="middle">none</text>')
-            elif kind == "check":
-                parts.append(f'<path d="M{cx - 6:.1f} {yy}l4 4 8-9" class="check"/>' if value else
-                             f'<text x="{cx:.1f}" y="{yy + 4}" class="row dim" text-anchor="middle">no</text>')
-            else:
-                parts.append(f'<text x="{cx:.1f}" y="{yy + 4}" class="row" text-anchor="middle">{value}</text>')
-    height = ry + len(rows) * 22 - 6
-    return (f'<svg class="chart" viewBox="0 0 {width} {height}" role="img" '
-            f'aria-label="Score of every house by level and policy; the table below lists the same">'
-            + "".join(parts) + "</svg>")
+def shared_houses(models: list[dict]) -> set:
+    """(level, seed, mode) of the houses every model played: the chart compares only these."""
+    sets = [{(r["level"], r["seed"], r["mode"]) for r in m["rows"]} for m in models]
+    return set.intersection(*sets) if sets else set()
 
 
-def results_table(ladder: dict) -> str:
-    data = groups(ladder)
-    head = "".join(f"<th>{ESC(n)}</th>" for _, n, _ in SERIES)
-    rows = []
-    for lv, by in data.items():
-        cells = "".join(f"<td>{statistics.mean(by[k]):.2f} ({min(by[k]):.2f}–{max(by[k]):.2f})</td>" for k, _, _ in SERIES)
-        rows.append(f"<tr><th>Level {lv}</th>{cells}</tr>")
-    return (f'<details class="table"><summary>Table</summary><table><thead><tr><th></th>{head}</tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table><p>Mean (lowest–highest) over {ladder["seeds"]} houses per level; '
-            f'the five exploits pooled.</p></details>')
+def on_shared(models: list[dict]) -> list[tuple[dict, list[dict]]]:
+    houses = shared_houses(models)
+    return [(m, [r for r in m["rows"] if (r["level"], r["seed"], r["mode"]) in houses]) for m in models]
 
 
 def legend(entries: list[tuple[str, str, str]]) -> str:
@@ -244,77 +179,89 @@ def legend(entries: list[tuple[str, str, str]]) -> str:
 
 
 def models_chart(ladder: dict, models: list[dict]) -> str:
-    """Mean score by level: the reference plumber and the never-test policy for scale, then each
-    model's mean (ringed dot) over its jobs (faint dots), joined across levels it ran in a row."""
-    levels = ladder["levels"]
-    left, right, top, plot_h, width = 48, 40, 14, 260, 960
-    step = (width - left - right) / (len(levels) - 1)
+    """Score by level on the shared houses, one line per model; the reference plumber and the
+    never-test policy (means over every house of the level) in neutral ink for scale."""
+    shared = on_shared(models)
+    levels = sorted({r["level"] for _, rows in shared for r in rows})
+    if not levels:
+        return ""
+    left, right, top, plot_h, width = 48, 40, 12, 230, 960
+    step = (width - left - right) / max(1, len(levels) - 1)
     xpos = {lv: left + i * step for i, lv in enumerate(levels)}
     y = lambda v: top + (1 - v) * plot_h
-    rnd = random.Random(11)
     parts = []
     for v in (0, 0.25, 0.5, 0.75, 1.0):
         parts.append(f'<line x1="{left - 20}" x2="{width - right + 20}" y1="{y(v):.1f}" y2="{y(v):.1f}" class="grid"/>'
                      f'<text x="{left - 26}" y="{y(v) + 4:.1f}" class="tick" text-anchor="end">{v:g}</text>')
     for lv in levels:
         parts.append(f'<text x="{xpos[lv]:.1f}" y="{top + plot_h + 22}" class="lv" text-anchor="middle">Level {lv}</text>')
-    series = [(name, color, {int(lv): statistics.mean(v) for lv, v in ladder["scores"][key].items()}, None)
-              for key, name, color in SERIES[:2]]
-    for m, color in zip(models, MODEL_COLORS):
+    series = []
+    for key, name, color in SERIES:
+        means = {lv: statistics.mean(ladder["scores"][key][str(lv)]) for lv in levels}
+        series.append((name, color, means, None, "base" + (" dash" if "never" in key else "")))
+    for (m, rows), color in zip(shared, MODEL_COLORS):
         by = {}
-        for r in m["rows"]:
+        for r in rows:
             by.setdefault(r["level"], []).append(r)
-        series.append((m["label"], color, {lv: statistics.mean(r["score"] for r in rs) for lv, rs in by.items()}, by))
-    for name, color, means, jobs in series:
-        present = [lv for lv in levels if lv in means]
-        for a, b in zip(present, present[1:]):
-            if levels.index(b) == levels.index(a) + 1:
-                parts.append(f'<line x1="{xpos[a]:.1f}" y1="{y(means[a]):.1f}" x2="{xpos[b]:.1f}" y2="{y(means[b]):.1f}" '
-                             f'stroke="{color}" stroke-width="2" stroke-linecap="round"/>')
-        for lv in present:
-            if jobs:
-                for r in jobs[lv]:
-                    parts.append(f'<circle cx="{xpos[lv] + rnd.uniform(-9, 9):.1f}" cy="{y(r["score"]):.1f}" r="2.6" '
-                                 f'fill="{color}" fill-opacity="0.45"/>')
-            parts.append(f'<circle cx="{xpos[lv]:.1f}" cy="{y(means[lv]):.1f}" r="5" fill="{color}" stroke="#fff" stroke-width="2"/>')
-            if jobs:
+        series.append((m["label"], color, {lv: statistics.mean(r["score"] for r in rs) for lv, rs in by.items()},
+                       by, "model"))
+    for name, color, means, jobs, kind in series:
+        pts = [(xpos[lv], y(means[lv])) for lv in levels if lv in means]
+        d = "M" + " L".join(f"{x:.1f} {yy:.1f}" for x, yy in pts)
+        parts.append(f'<path d="{d}" class="{kind}" stroke="{color}"/>')
+        for lv in levels:
+            if lv not in means:
+                continue
+            cx, cy = xpos[lv], y(means[lv])
+            if kind == "model":
+                parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="5" fill="{color}" stroke="#fff" stroke-width="2"/>')
                 st = stats(jobs[lv])
-                tip = (f"{means[lv]:.2f} mean\n{name}, level {lv}\n{st['fixed_all']} of {st['jobs']} jobs fixed every fault, "
-                       f"{st['diagnosis_right']} named them right")
+                tip = (f"{means[lv]:.2f}\n{name}, level {lv}\n{st['fixed_all']} of {st['jobs']} "
+                       f"{'house' if st['jobs'] == 1 else 'houses'} with every fault fixed")
             else:
                 tip = f"{means[lv]:.2f} mean\n{name}, level {lv}\n{ladder['seeds']} houses"
-            parts.append(f'<rect x="{xpos[lv] - 14:.1f}" y="{y(means[lv]) - 14:.1f}" width="28" height="28" class="hit" '
+            parts.append(f'<rect x="{cx - 12:.1f}" y="{cy - 12:.1f}" width="24" height="24" class="hit" '
                          f'tabindex="0" data-tip="{ESC(tip)}" aria-label="{ESC(tip.replace(chr(10), ", "))}"/>')
     height = top + plot_h + 32
     return (f'<svg class="chart" viewBox="0 0 {width} {height}" role="img" '
-            f'aria-label="Mean score by level for the reference plumber, the never-test policy and each model">'
-            + "".join(parts) + "</svg>")
+            f'aria-label="Score by level for each model on the same houses, with the reference plumber and the '
+            f'never-test policy for scale; the table below lists the same">' + "".join(parts) + "</svg>")
 
 
 def model_table(models: list[dict]) -> str:
-    """Accuracy and spend per model, levels 1-2 and 3-4 apart."""
+    """Per model, on the shared houses: the score at each level, then what went wrong and what it took."""
+    shared = on_shared(models)
+    levels = sorted({r["level"] for _, rows in shared for r in rows})
+    head = "".join(f"<th>Level {lv}</th>" for lv in levels)
     rows = []
-    for m in models:
-        for name, keep in (("1–2", lambda r: r["level"] <= 2), ("3–4", lambda r: r["level"] >= 3)):
-            jobs = [r for r in m["rows"] if keep(r)]
-            if not jobs:
-                continue
-            st = stats(jobs)
-            secs = f"{st['seconds']:.0f} s" if st["seconds"] else "–"
-            rows.append(f"<tr><th>{ESC(m['label'])}</th><td>{name}</td><td>{st['jobs']}</td><td>{st['score']:.2f}</td>"
-                        f"<td>{st['fixed_all']} of {st['jobs']}</td><td>{st['diagnosis_right']} of {st['jobs']}</td>"
-                        f"<td>{st['tokens_read'] / 1000:.0f}k <span>({st['cached_share']:.0%} cached)</span></td>"
-                        f"<td>{st['tokens_written'] / 1000:.1f}k</td><td>{st['tool_calls']:.0f}</td><td>{secs}</td></tr>")
-    return ('<div class="models"><table><thead><tr><th>Model</th><th>Levels</th><th>Jobs</th><th>Score</th>'
-            '<th>Every fault fixed</th><th>Faults named right</th><th>Tokens read per job</th><th>Written</th>'
-            '<th>Tool calls</th><th>Time</th></tr></thead><tbody>' + "".join(rows) + "</tbody></table>"
-            + "</div>")
+    for m, jobs in shared:
+        if not jobs:
+            continue
+        by = {lv: [r for r in jobs if r["level"] == lv] for lv in levels}
+        cells = "".join(f"<td>{statistics.mean(r['score'] for r in by[lv]):.2f}</td>" if by[lv] else "<td>–</td>"
+                        for lv in levels)
+        st = stats(jobs)
+        left = sum(1 for r in jobs if r.get("finished") and r.get("repair", 1) < 1)
+        secs = f"{st['seconds']:.0f} s" if st["seconds"] else "–"
+        rows.append(f'<tr><th>{ESC(m["label"])}</th><td class="dim">{ESC(m.get("harness", ""))}</td>{cells}'
+                    f"<td>{st['fixed_all']} of {st['jobs']}</td><td>{left}</td>"
+                    f"<td>{st['tool_calls']:.0f}</td><td>{secs}</td></tr>")
+    return ('<div class="models"><table><thead><tr><th>Model</th><th>Run with</th>' + head +
+            '<th>Every fault fixed</th><th>Done with a fault left</th><th>Actions</th><th>Time</th></tr></thead>'
+            '<tbody>' + "".join(rows) + "</tbody></table></div>")
 
 
-def early_finish(models: list[dict]) -> tuple[int, int]:
-    """Model jobs at levels 3-4 that reported the job done with a fault still in the house."""
-    jobs = [r for m in models for r in m["rows"] if r["level"] >= 3]
-    return sum(1 for r in jobs if r.get("finished") and r.get("repair", 1) < 1), len(jobs)
+def validity(ladder: dict) -> str:
+    """Three numbers that say the score means something: the reference plumber near 1, the
+    policy that never tests far below, and every exploit at 0."""
+    every = lambda key: [x for lv in ladder["levels"] for x in ladder["scores"][key][str(lv)]]
+    exploits = [k for k in ladder["scores"] if k not in ("reference solver", "service all, never test")]
+    houses = ladder["seeds"] * len(ladder["levels"])
+    tiles = [(f"{statistics.mean(every('reference solver')):.2f}", "reference plumber"),
+             (f"{statistics.mean(every('service all, never test')):.2f}", "service everything, never test"),
+             (f"{max(max(every(k)) for k in exploits):.2f}", f"best of {len(exploits)} exploits")]
+    items = "".join(f"<li><b>{v}</b><span>{ESC(t)}</span></li>" for v, t in tiles)
+    return f'<ul class="tiles" aria-label="Mean score over {houses} houses">{items}</ul>'
 
 
 def reward_bar() -> str:
@@ -334,15 +281,13 @@ def reward_bar() -> str:
 def models_slide(ladder: dict, models: list[dict]) -> str:
     if not models:
         return ""
-    early, total = early_finish(models)
-    entries = [(n, c, "") for _, n, c in SERIES[:2]] + [(m["label"], c, "big") for m, c in zip(models, MODEL_COLORS)]
-    stat = (f'<p class="stat"><b>{early} of {total}</b><span>level 3–4 jobs reported done with a fault still in the house</span></p>') if total else ""
+    entries = [(m["label"], c, "") for m, c in zip(models, MODEL_COLORS)]
+    entries += [(n, c, "line" + (" dash" if "never" in k else "")) for k, n, c in SERIES]
     return f"""
-<section class="slide" id="models">
-<h2>Where models break</h2>
+<section class="slide" id="results">
+<h2>Same houses, {len(models)} models</h2>
 {legend(entries)}
 <div class="chart-wrap">{models_chart(ladder, models)}</div>
-{stat}
 {model_table(models)}
 </section>
 """
@@ -365,9 +310,10 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
     strip = "\n".join(
         f'<li>{_img(f["src"], f["w"], f["h"], "The picture after " + f["cmd"] + ": " + f["caption"])}'
         f'<code>{ESC(f["cmd"])}</code></li>' for f in frames)
-    chips = "".join(f"<code>{ESC(t)}</code>" for t in tools)
     p = pics["predict"]
-    views = "".join(_img(v["src"], v["w"], v["h"], v["alt"]) for v in pics["views"])
+    leak = pics["faults"][[f["kind"] for f in pics["faults"]].index("supply_leak")]
+    facts = "".join(f'<li><b>{ESC(n)}</b><span>{ESC(what)}</span></li>' for n, what, _, _ in FACTS)
+    sources = " &middot; ".join(f'<a href="{url}">{ESC(src)}</a>' for _, _, src, url in [IMO] + FACTS)
     faults = "".join(
         f'<figure>{_img(f["src"], f["w"], f["h"], f["kind"].replace("_", " ") + ", " + f["tag"] + " up close")}'
         f'<figcaption><code>{f["kind"]}</code></figcaption></figure>' for f in pics["faults"])
@@ -377,44 +323,44 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
 <nav class="site" aria-label="Site"><a class="brand" href="./">{icon("gnav")}<span>PlumberBench</span></a>
 <span class="links"><a href="{PLAY}">Play</a><a href="{DEMO}">Demo</a><a href="#results">Results</a><a href="{REPO}">Code</a></span></nav>
 <header class="hero">
-  <div class="appicon">{icon("ghero")}</div>
-  <h1>What&rsquo;s the next bottleneck?</h1>
-  <ol class="strip" aria-label="Four steps from the demo run">
-{strip}
-  </ol>
+  <h1>AI can solve any maths problem.<br><span>It can&rsquo;t fix your leaky pipes. Yet.</span></h1>
+  <div class="versus">
+    <a class="card proof" href="{IMO[3]}"><b>{IMO[0]}</b><span>{ESC(IMO[1])}</span></a>
+    <figure class="card">{_img(leak["src"], leak["w"], leak["h"], "A supply joint dripping under a basin")}</figure>
+  </div>
   <div class="actions"><a class="button primary" href="{PLAY}">Play it</a><a class="button" href="{DEMO}">Watch a run</a></div>
 </header>
 </section>
 
-<section class="slide" id="bottlenecks">
+<section class="slide" id="why">
+<ul class="tiles facts">{facts}</ul>
+</section>
+
+<section class="slide" id="hard">
+<h2>Maths is all on the page. Pipes aren&rsquo;t.</h2>
 <div class="three">
-  <figure class="cand off"><figcaption><b>Hands</b><span class="tag">not tested</span></figcaption>
-    <div class="tools">{chips}</div></figure>
-  <figure class="cand"><figcaption><b>World model</b><span class="tag on">tested</span></figcaption>
-    <div class="pair">{_img(p["before"][0], p["before"][1], p["before"][2], "Kitchen basin before running the tap")}
-      <span class="arrow"><code>{ESC(p["cmd"])}</code><span aria-hidden="true">&rarr;</span></span>
-      {_img(p["after"][0], p["after"][1], p["after"][2], "The same basin after: the water rose instead of draining")}</div></figure>
-  <figure class="cand"><figcaption><b>Context</b><span class="tag on">tested</span></figcaption>
-    <div class="views">{views}</div></figure>
+  <figure class="card">{_img(*pics["hidden"], "Under a kitchen basin: every pipe looks fine")}
+    <figcaption><b>The fault is hidden</b><span>This trap is blocked.</span></figcaption></figure>
+  <figure class="card"><div class="pair">{_img(p["before"][0], p["before"][1], p["before"][2], "Kitchen basin before running the tap")}
+      {_img(p["after"][0], p["after"][1], p["after"][2], "The same basin after: the water rose instead of draining")}</div>
+    <figcaption><b>Only a test shows it</b><span><code>{ESC(p["cmd"])}</code> and the water rises.</span></figcaption></figure>
+  <figure class="card">{_img(*pics["puddle"], "Water on the floor under a leaking drain joint")}
+    <figcaption><b>Every test has a cost</b><span>Two runs of the tap: {pics["damage"]} units of water damage.</span></figcaption></figure>
 </div>
 </section>
 
-<section class="slide" id="faults">
-<h2>Six faults</h2>
+<section class="slide" id="game">
+<h2>Look. Test. Fix.</h2>
+<ol class="strip" aria-label="Four steps from the demo run">
+{strip}
+</ol>
 <div class="faults">{faults}</div>
-</section>
-
-<section class="slide" id="results">
-<h2>Solvable. Not gameable.</h2>
-{legend([(n, c, "") for _, n, c in SERIES] + [("Mean", "#1f1f1f", "tick")])}
-<div class="chart-wrap">{results_chart(ladder)}</div>
-{results_table(ladder)}
 </section>
 {models_slide(ladder, models)}
 <section class="slide" id="harness">
 <h2>Scored by replay</h2>
 <ol class="flow" aria-label="How a run is scored">
-  <li><b>Agent</b><span>OpenCode + model</span></li>
+  <li><b>Agent</b><span>any model, any harness</span></li>
   <li class="link"><code>{len(tools)} MCP tools</code><span aria-hidden="true">&harr;</span><code>picture + text</code></li>
   <li><b>House</b><span>simulator + renderer</span></li>
   <li class="link"><code>action log</code><span aria-hidden="true">&rarr;</span></li>
@@ -423,6 +369,7 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
   <li class="score"><b>Score 0&ndash;1</b></li>
 </ol>
 {reward_bar()}
+{validity(ladder)}
 <pre class="cmd"><code>harbor run --repo valuhaka/plumberbench -d plumberbench -a opencode -m MODEL</code></pre>
 </section>
 
@@ -431,6 +378,7 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
 <h2>Try it</h2>
 <div class="actions"><a class="button primary" href="{PLAY}">Play it</a><a class="button" href="{DEMO}">Watch a run</a><a class="button" href="{REPO}">Code</a></div>
 <p class="fine">Junction 2026 &middot; AfterQuery, Break the Agent</p>
+<p class="fine sources">Sources: {sources}</p>
 </section>
 """
     return (f'<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">\n'
@@ -439,7 +387,7 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
             f'<link rel="canonical" href="{SITE}/">\n'
             f'<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,{quote(icon("fav").replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ', 1))}">\n'
             f'<meta property="og:type" content="website">\n<meta property="og:url" content="{SITE}/">\n'
-            f'<meta property="og:title" content="PlumberBench: what\'s the next bottleneck?">\n'
+            f'<meta property="og:title" content="PlumberBench: AI can solve any maths problem. It can\'t fix your leaky pipes. Yet.">\n'
             f'<meta property="og:description" content="{ESC(DESCRIPTION)}">\n'
             f'<meta property="og:image" content="{SITE}/{frames[0]["src"]}">\n'
             f'<meta name="twitter:card" content="summary_large_image">\n'
@@ -462,135 +410,129 @@ def offline_page() -> str:
 
 CSS = r"""
 :root {
-  --ui: "Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", Geneva, Verdana, sans-serif;
-  --mono: Monaco, Menlo, "DejaVu Sans Mono", Consolas, monospace;
-  --ink: #1f1f1f; --muted: #626262; --line: #c4c4c4;
+  --ui: "Lucida Grande", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono: Menlo, Monaco, "DejaVu Sans Mono", Consolas, monospace;
+  --ink: #1f2328; --muted: #5f6670; --line: #d9dbde; --card: #ffffff; --accent: #2a6fcb;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
-html { background: #e3e3e3; scroll-behavior: smooth; }
+html { background: #f3f3f2; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-@media (min-width: 900px) and (min-height: 640px) { html { scroll-snap-type: y proximity; } }
-body { margin: 0; color: var(--ink); font: 14px/1.5 var(--ui); background: linear-gradient(#f4f4f4, #e3e3e3 100vh) no-repeat, #e3e3e3; }
-main { padding: 0 20px; }
-a:focus-visible, .hit:focus-visible, summary:focus-visible { outline: 3px solid #7fb2ef; outline-offset: 2px; }
+body { margin: 0; color: var(--ink); font: 15px/1.5 var(--ui); background: #f3f3f2; }
+main { padding: 0 20px 24px; }
+a { color: var(--accent); }
+a:focus-visible, .hit:focus-visible, summary:focus-visible { outline: 3px solid #9cc0ec; outline-offset: 2px; }
 
-.slide { max-width: 1100px; margin: 0 auto; padding: 56px 0; display: grid; align-content: center;
-  justify-items: center; gap: 22px; scroll-snap-align: start; text-align: center; }
-/* One screen per section where it is presented; on a phone the sections simply follow each other. */
-@media (min-width: 900px) and (min-height: 640px) { .slide { min-height: 100svh; padding: 64px 0; } }
-.slide + .slide { border-top: 1px solid #d0d0d0; }
-.slide h2 { margin: 0; font: 700 clamp(26px, 3.4vw, 36px)/1.15 var(--ui); text-wrap: balance; }
+.slide { max-width: 1100px; margin: 0 auto; padding: 28px 0; display: grid; justify-items: center; gap: 16px; text-align: center; }
+.slide h2 { margin: 0; font: 700 clamp(24px, 3vw, 32px)/1.2 var(--ui); text-wrap: balance; }
 .fine { margin: 0; color: var(--muted); font-size: 12.5px; }
-code { font: 12px/1.3 var(--mono); color: var(--ink); background: #fff; border: 1px solid #c9c9c9; border-radius: 4px; padding: 3px 8px; white-space: nowrap; }
-img { display: block; width: 100%; height: auto; background: #fff; padding: 4px; border: 1px solid #b3b3b3; box-shadow: 0 2px 5px rgba(0,0,0,.14); }
+.fine a { color: inherit; }
+code { font: 12px/1.3 var(--mono); color: var(--ink); background: #f6f6f6; border: 1px solid #dcdcdc; border-radius: 4px; padding: 2px 7px; white-space: nowrap; }
+img { display: block; width: 100%; height: auto; border-radius: 6px; border: 1px solid #e2e2e2; background: #fff; }
+.card { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
 
 /* hero */
-.hero-slide { padding-top: 18px; gap: 0; grid-template-rows: auto 1fr; align-content: stretch; }
-.site { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%;
-  padding: 0 0 0 14px; height: 36px; border-radius: 6px; overflow: hidden; color: #222; text-shadow: 0 1px 0 rgba(255,255,255,.7);
-  background: linear-gradient(#f4f4f4, #d2d2d2 50%, #c4c4c4 51%, #dadada); border: 1px solid #8a8a8a; box-shadow: 0 1px 3px rgba(0,0,0,.16); }
-.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: inherit; text-decoration: none; }
+.hero-slide { padding-top: 14px; }
+.site { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; height: 40px;
+  padding: 0 0 0 14px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid var(--line); }
+.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink); text-decoration: none; }
 .brand svg { width: 22px; height: 22px; display: block; }
 .links { display: flex; align-self: stretch; }
-.links a { display: flex; align-items: center; padding: 0 20px; color: inherit; text-decoration: none; font-size: 13px;
-  border-left: 1px solid #a3a3a3; box-shadow: inset 1px 0 0 rgba(255,255,255,.65); }
-.links a:hover { background: rgba(0,0,0,.05); }
+.links a { display: flex; align-items: center; padding: 0 18px; color: var(--ink); text-decoration: none; font-size: 13.5px; }
+.links a:hover { background: #f2f4f7; }
 .links a:focus-visible { outline-offset: -3px; }
-.hero { width: 100%; padding: 28px 0 16px; display: grid; justify-items: center; align-content: center; gap: 14px; }
-.appicon { width: 84px; height: 84px; filter: drop-shadow(0 3px 4px rgba(0,0,0,.25)); }
-.appicon.small { width: 64px; height: 64px; }
+.hero { width: 100%; padding: 26px 0 4px; display: grid; justify-items: center; gap: 18px; }
+h1 { margin: 0; font: 700 clamp(28px, 4.2vw, 46px)/1.15 var(--ui); text-wrap: balance; }
+h1 span { color: #2a6fcb; }
+.versus { width: min(100%, 860px); display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; }
+.proof { display: grid; align-content: center; justify-items: center; gap: 6px; padding: 18px; color: var(--ink); text-decoration: none;
+  font-family: var(--mono); background: #fff; }
+.proof b { font: 700 clamp(44px, 7vw, 72px)/1 var(--ui); }
+.proof span { max-width: 26ch; color: var(--muted); font: 13.5px/1.4 var(--ui); }
+.appicon { width: 64px; height: 64px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.18)); }
 .appicon svg { width: 100%; height: 100%; display: block; }
-h1 { margin: 0; font: 700 clamp(28px, 4vw, 40px)/1.15 var(--ui); text-wrap: balance; }
-.strip { list-style: none; margin: 18px 0 0; padding: 0; width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
-.strip li { display: grid; gap: 8px; justify-items: center; align-content: start; }
-.actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
-.button { font: 13px/1 var(--ui); padding: 9px 20px; border-radius: 5px; border: 1px solid #8c8c8c; background: linear-gradient(#fdfdfd, #ececec); color: #111; text-decoration: none; }
-.button.primary { background: linear-gradient(#97a0ab, #6e7783); border-color: #565e68; color: #fff; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.button { font: 14px/1 var(--ui); padding: 10px 20px; border-radius: 7px; border: 1px solid #c9cbcf; background: #fff; color: var(--ink); text-decoration: none; }
+.button:hover { background: #f4f5f7; }
+.button.primary { background: var(--accent); border-color: #255fae; color: #fff; }
+.button.primary:hover { background: #2563b6; }
 
-/* three candidates */
-.three { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
-.cand { margin: 0; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 9px; display: grid; gap: 14px; align-content: start; }
-.cand figcaption { display: grid; gap: 2px; }
-.cand figcaption b { font-size: 18px; }
-.cand figcaption { justify-items: center; }
-.tag { font-size: 11.5px; padding: 1px 8px; border-radius: 9px; background: #dcdcdc; color: #555; }
-.tag.on { background: linear-gradient(#97a0ab, #6e7783); color: #fff; }
-.cand.off { background: #ececec; grid-template-rows: auto 1fr; }
-.cand.off b { color: #6b6b6b; }
-.tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-content: center; }
-.cand.off code { color: #555; }
-.pair { display: grid; gap: 8px; justify-items: center; }
-.pair .arrow { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
-.pair .arrow span { display: inline-block; transform: rotate(90deg); font-size: 16px; }
-.views { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.views img { padding: 2px; }
-.views img:last-child { grid-column: 1 / -1; width: calc(50% - 4px); justify-self: center; }
+/* numbers */
+.tiles { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.tiles li { display: grid; gap: 4px; justify-items: center; align-content: start; padding: 14px 12px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+.tiles b { font-size: clamp(26px, 3.4vw, 36px); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tiles span { color: var(--muted); font-size: 13.5px; max-width: 30ch; }
 
-/* faults */
-.faults { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 22px; }
-.faults figure { margin: 0; display: grid; gap: 8px; justify-items: center; }
+/* why it is hard */
+.three { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.three .card { display: grid; gap: 10px; grid-template-rows: 1fr auto; }
+.three .pair { align-self: center; }
+.three figcaption { display: grid; gap: 2px; }
+.three figcaption b { font-size: 16px; }
+.three figcaption span { color: var(--muted); font-size: 13.5px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; }
+
+/* the game */
+.strip { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.strip li { display: grid; gap: 6px; justify-items: center; align-content: start; }
+.faults { width: 100%; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.faults figure { margin: 0; display: grid; gap: 6px; justify-items: center; }
+.faults code { font-size: 11px; }
 
 /* results */
-.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font-size: 12.5px; color: var(--muted); }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; font-size: 12.5px; color: var(--muted); }
 .legend li { display: inline-flex; align-items: center; gap: 7px; }
 .key { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.key.big { width: 12px; height: 12px; box-shadow: 0 0 0 2px #fff, 0 0 0 3px #d0d0d0; }
-.key.tick { width: 14px; height: 2px; border-radius: 0; background: #1f1f1f; }
+.key.line { width: 16px; height: 2px; border-radius: 0; }
+.key.line.dash { background: repeating-linear-gradient(90deg, #9a9a9a 0 5px, transparent 5px 8px) !important; }
 .reward + .legend .key { border-radius: 3px; }
-.chart-wrap { width: 100%; overflow-x: auto; background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 14px 8px 10px; }
+.chart-wrap { width: 100%; overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 8px 8px; }
 .chart { display: block; width: 100%; min-width: 640px; height: auto; font-family: var(--ui); }
-.chart .grid { stroke: #e3e3e3; stroke-width: 1; }
+.chart .grid { stroke: #e8e8e8; stroke-width: 1; }
 .chart .tick { font-size: 11px; fill: var(--muted); }
 .chart .lv { font-size: 13px; font-weight: 700; fill: var(--ink); }
-.chart .row { font-size: 11.5px; fill: var(--muted); }
-.chart .row.dim { fill: #9a9a9a; }
-.chart .mean { stroke: #1f1f1f; stroke-width: 2; stroke-linecap: round; }
-.chart .check { fill: none; stroke: #3a3f46; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.chart path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.chart .model { stroke-width: 2.5; }
+.chart .base { stroke-width: 1.5; }
+.chart .dash { stroke-dasharray: 6 5; }
 .chart .hit { fill: transparent; }
-.chart .hit:hover, .chart .hit:focus { fill: rgba(127,178,239,.12); outline: none; }
-details.table { font-size: 12.5px; color: var(--muted); max-width: 100%; }
-details.table summary { cursor: pointer; color: #2a5ea3; }
-details.table table { margin: 10px auto 6px; border-collapse: collapse; background: #fff; font-variant-numeric: tabular-nums; }
-details.table th, details.table td { padding: 5px 10px; border: 1px solid #e0e0e0; text-align: left; color: var(--ink); }
-details.table p { margin: 4px 0; }
-details.table code { white-space: normal; }
-.tip { position: fixed; z-index: 10; pointer-events: none; background: #fff; border: 1px solid #8a8a8a; border-radius: 6px;
-  box-shadow: 0 6px 18px rgba(0,0,0,.2); padding: 7px 10px; font-size: 12px; color: var(--muted); text-align: left; max-width: 260px; }
+.chart .hit:hover, .chart .hit:focus { fill: rgba(42,111,203,.10); outline: none; }
+.tip { position: fixed; z-index: 10; pointer-events: none; background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.12); padding: 7px 10px; font-size: 12px; color: var(--muted); text-align: left; max-width: 260px; }
 .tip div:first-child { font-size: 15px; font-weight: 700; color: var(--ink); }
-
-.stat { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 6px 12px; text-align: left; }
-.stat b { font-size: 44px; line-height: 1; white-space: nowrap; }
-.stat span { max-width: 30ch; color: var(--muted); font-size: 14px; }
 .models { max-width: 100%; overflow-x: auto; }
-.models table { border-collapse: collapse; background: #fff; border: 1px solid var(--line); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-.models th, .models td { padding: 6px 10px; text-align: left; border-top: 1px solid #e3e3e3; white-space: nowrap; }
+.models table { border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.models th, .models td { padding: 6px 12px; text-align: left; border-top: 1px solid #ececec; white-space: nowrap; }
 .models thead th { color: var(--muted); font-weight: 400; border-top: 0; }
-.models td span { color: var(--muted); }
-.models p { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.models .dim { color: var(--muted); }
 
 /* harness */
-.flow { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
-.flow > li:not(.link) { display: grid; gap: 2px; padding: 12px 16px; background: #fff; border: 1px solid var(--line); border-radius: 9px; min-width: 128px; }
+.flow { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.flow > li:not(.link) { display: grid; gap: 2px; padding: 10px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; min-width: 120px; }
 .flow > li b { font-size: 15px; }
 .flow > li span { font-size: 12px; color: var(--muted); }
-.flow .link { display: grid; justify-items: center; gap: 4px; color: #3a3f46; font-size: 26px; line-height: 1; }
-.flow > li.score { background: linear-gradient(#97a0ab, #6e7783); border-color: #565e68; }
-.flow > li.score b, .flow > li.score span { color: #fff; }
+.flow .link { display: grid; justify-items: center; gap: 4px; color: var(--muted); font-size: 22px; line-height: 1; }
+.flow > li.score { background: #eaf2fc; border-color: #b9d2f1; }
 .reward { width: min(100%, 760px); display: flex; align-items: center; gap: 10px; }
-.reward .bar { flex: 1; display: flex; gap: 2px; height: 28px; }
+.reward .bar { flex: 1; display: flex; gap: 2px; height: 26px; }
 .reward .part { display: flex; align-items: center; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 700; min-width: 0; white-space: nowrap; }
 pre.cmd { margin: 0; max-width: 100%; overflow-x: auto; }
-pre.cmd code { display: inline-block; font-size: 12.5px; padding: 8px 14px; }
+pre.cmd code { display: inline-block; font-size: 12.5px; padding: 8px 14px; background: #fff; }
+.end { padding-bottom: 28px; }
+.sources { max-width: 70ch; }
 
 @media (max-width: 860px) {
-  .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
-  .three { grid-template-columns: 1fr; }
-  .faults { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .three, .tiles { grid-template-columns: 1fr; }
+  .versus { gap: 8px; }
+  .proof { padding: 10px; }
+  .proof b { font-size: 34px; }
+  .proof span { font-size: 12px; }
+  .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .faults { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .flow { flex-direction: column; }
   .flow .link > span { display: inline-block; transform: rotate(90deg); }
 }
-@media (max-width: 420px) { .brand span { display: none; } .links a { padding: 0 12px; } .reward .part { padding: 0 4px; font-size: 11px; } }
+@media (max-width: 420px) { .brand span { display: none; } .links a { padding: 0 11px; } .reward .part { padding: 0 4px; font-size: 11px; } }
 """
 
 JS = r"""

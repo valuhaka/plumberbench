@@ -27,7 +27,7 @@ uv run --extra dev pytest -q tests/test_rules.py
 | Pictures | `scene.py`, `layout.py`, `render.py` (all GL work on one owned thread) |
 | What the agent reads | `observe.py`, `server.py`, `instruction.md` |
 | Harbor tasks | `tasks.py`, `harbor/smoke-vision/`, `pb_agents/` |
-| Model runs without Docker | `agent.py`, `agents_sdk.py`, `codex_cli.py`, `results.py` |
+| Model runs without Docker | `agent.py`, `agents_sdk.py`, `codex_cli.py`, `results.py`, `scripts/pb` (agents with their own loop) |
 | People | `play.py`, `web.py`, `online.py` (many players, `Dockerfile`) |
 | Website | `lander.py`, `replay.py`, `demo.py`, `site/`, `worker/` (online play: `worker/online/`) |
 

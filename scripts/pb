@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""pb JOB COMMAND...  Send one command to a job's house on the online play server, print the reply.
+
+How the Claude models on the site were run (docs/models.md): the operator starts
+`python -m plumberbench.online`, opens a house per job with scripts/pb_open.py, and tells
+the agent to act only through `scripts/pb JOB COMMAND` and to look at each PICTURE it prints.
+Each job folder (PB_JOBS/JOB) keeps the cookie, a log of every command and reply, the
+pictures, and result.json once the job is over; `python -m plumberbench.results add-client`
+turns those into results/models/.
+"""
+import base64, http.cookiejar, json, os, sys, time, urllib.request
+from pathlib import Path
+if len(sys.argv) < 3:
+    sys.exit("usage: pb JOB COMMAND...   (try: pb JOB help)")
+job = Path(os.environ.get("PB_JOBS", "jobs")) / sys.argv[1]
+if not (job / "cookies.txt").exists():
+    sys.exit(f"unknown job {sys.argv[1]}")
+line = " ".join(sys.argv[2:])
+jar = http.cookiejar.MozillaCookieJar(str(job / "cookies.txt")); jar.load(ignore_discard=True)
+opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), urllib.request.ProxyHandler({}))
+req = urllib.request.Request(os.environ.get("PB_URL", "http://127.0.0.1:8080") + "/command", data=json.dumps({"line": line}).encode(),
+                             headers={"Content-Type": "application/json"})
+try:
+    reply = json.load(opener.open(req, timeout=120))
+except urllib.error.HTTPError as e:
+    reply = json.load(e)
+n = sum(1 for _ in (job / "log.jsonl").open()) if (job / "log.jsonl").exists() else 0
+with (job / "log.jsonl").open("a") as f:
+    f.write(json.dumps({"t": time.time(), "line": line, "text": reply["text"], "result": reply["result"]}) + "\n")
+print(reply["text"])
+if reply["image"]:
+    pic = job / f"pic_{n + 1:03d}.jpg"
+    pic.write_bytes(base64.b64decode(reply["image"]))
+    print(f"PICTURE: {pic}")
+if reply["result"]:
+    (job / "result.json").write_text(json.dumps(reply["result"], indent=2))
+    print("The job is over. Result:\n" + json.dumps({k: reply["result"][k] for k in ("score", "faults_fixed", "faults_total", "damage", "diagnosis_correct") if k in reply["result"]}))

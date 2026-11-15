@@ -47,7 +47,17 @@ The verifier replays the logged actions from the seed in its own container, so r
 | Service every part, never test | 0.41 | 0.37 | 0.43 | 0.51 |
 | Codex, default model (houses 0–1, both modes) | 0.90 (4 jobs) | – | 0.44 (4) | 0.58 (4) |
 
-At levels 3–4, Codex fixed every fault in 2 of 8 jobs, and in 5 of 8 reported the job done with a fault still in the house. Data: `results/`; figures: [plumberbench.org](https://plumberbench.org); more models: [docs/models.md](docs/models.md).
+On the same three houses (seed 0, levels 1, 3 and 4, pictures only):
+
+| | Level 1 | Level 3 | Level 4 | Every fault fixed |
+|---|---|---|---|---|
+| Claude Fable 5.2 (Claude Code) | 0.95 | 0.93 | 0.94 | 3 of 3 |
+| Claude Opus 5.5 (Claude Code) | 0.94 | 0.93 | 0.93 | 3 of 3 |
+| Claude Sonnet 5.5 (Claude Code) | 0.91 | 0.92 | 0.92 | 3 of 3 |
+| Claude Haiku 5.5 (Claude Code) | 0.86 | 0.91 | 0.90 | 3 of 3 |
+| Codex, default model (Codex CLI) | 0.88 | 0.43 | 0.91 | 2 of 3 |
+
+At levels 3–4, Codex fixed every fault in 2 of 8 jobs, and in 5 of 8 reported the job done with a fault still in the house. One house per level per Claude model so far. Data: `results/`; figures: [plumberbench.org](https://plumberbench.org); how they were run: [docs/models.md](docs/models.md).
 
 ## Repository
 

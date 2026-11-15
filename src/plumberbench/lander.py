@@ -15,6 +15,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from .icon import icon
 from .render import STAMP_H
 
 REPO = "https://github.com/valuhaka/plumberbench"
@@ -28,14 +29,6 @@ FRAMES = [
     (42, "run_tap both 1", "It drains."),
 ]
 WIDTH = 560
-
-ICON = """<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="ICONID" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="#9fd0f5"/><stop offset="1" stop-color="#2f78c4"/></linearGradient></defs>
-<path d="M10 18h22a10 10 0 0 1 10 10v8h-9v-6a3 3 0 0 0-3-3H10z" fill="#b9c2cc" stroke="#6b7682" stroke-width="1.5"/>
-<rect x="7" y="15" width="5" height="15" rx="1.5" fill="#d7dde3" stroke="#6b7682" stroke-width="1.5"/>
-<rect x="31" y="34" width="13" height="5" rx="1.5" fill="#d7dde3" stroke="#6b7682" stroke-width="1.5"/>
-<path d="M37.5 42c4 6 7 9.5 7 13.2a7 7 0 0 1-14 0c0-3.7 3-7.2 7-13.2z" fill="url(#ICONID)" stroke="#1f5a99" stroke-width="1.2"/>
-<path d="M34.5 54.5a3.5 3.5 0 0 0 3 3.2" stroke="#fff" stroke-opacity=".8" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>"""
 
 CSS = r"""
 :root {
@@ -127,10 +120,10 @@ def build(log_dir: Path) -> str:
 <title>PlumberBench</title>
 <style>{CSS}</style></head><body>
 <div class="wrap">
-<nav class="site" aria-label="Site"><a class="brand" href="./">{ICON.replace("ICONID", "gnav")}<span>PlumberBench</span></a>
+<nav class="site" aria-label="Site"><a class="brand" href="./">{icon("gnav")}<span>PlumberBench</span></a>
 <span class="links"><a href="{DEMO}">Demo</a><a href="{REPO}">Code</a></span></nav>
 <header class="hero">
-  <div class="appicon">{ICON.replace("ICONID", "ghero")}</div>
+  <div class="appicon">{icon("ghero")}</div>
   <h1>What&rsquo;s the next bottleneck?</h1>
   <p class="kicker">2027 &middot; After the symbols</p>
   <ol class="strip" aria-label="Four steps from the demo run">

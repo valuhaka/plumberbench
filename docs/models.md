@@ -48,4 +48,4 @@ The agent is told to act only through `scripts/pb opus-l3 COMMAND`, one command 
 uv run -m plumberbench.results add-client jobs/opus-l1 jobs/opus-l3 jobs/opus-l4 --label "Claude Opus 5.5" --harness "Claude Code"
 ```
 
-This client reports no token counts, so those rows show none. Its loop is not OpenCode's either: confirm through Harbor before comparing models across harnesses.
+This client reports no token counts, so those rows show none. Its loop is not OpenCode's either: confirm through Harbor before comparing models across harnesses. In the level 1–4 Claude runs the client did not yet save the briefing's picture, so those agents first saw the house on their first move; since then `pb_open.py` saves it as `pic_000.jpg` and the agent is pointed to it.

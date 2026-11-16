@@ -53,6 +53,40 @@
    "tool_calls": 31,
    "seconds": 69.0,
    "run": "haiku-l4"
+  },
+  {
+   "level": 5,
+   "seed": 0,
+   "mode": "pictures only",
+   "score": 0.7858,
+   "repair": 1.0,
+   "faults": "5/5",
+   "damage": 25,
+   "time": "77/120",
+   "free_actions": 13,
+   "diagnosis_correct": true,
+   "finished": true,
+   "stop": "finished",
+   "tool_calls": 47,
+   "seconds": 136.3,
+   "run": "haiku-l5-s0"
+  },
+  {
+   "level": 5,
+   "seed": 1,
+   "mode": "pictures only",
+   "score": 0.5938,
+   "repair": 0.8333,
+   "faults": "5/6",
+   "damage": 57,
+   "time": "105/120",
+   "free_actions": 10,
+   "diagnosis_correct": false,
+   "finished": true,
+   "stop": "finished",
+   "tool_calls": 57,
+   "seconds": 139.3,
+   "run": "haiku-l5-s1"
   }
  ]
 }

@@ -146,3 +146,17 @@ def test_a_close_up_has_a_way_back(browser, page_url):
     assert "You are looking at" in page.inner_text("#latest")
     assert page.eval_on_selector("#st-time", "e => e.textContent") == before, "going back takes no time"
     page.close()
+
+
+@pytest.mark.parametrize("name", ["main.html", "demo.html", "play-offline.html"])
+@pytest.mark.parametrize("width,height", [(390, 844), (1280, 800)])
+def test_the_website_never_scrolls_sideways(browser, name, width, height):
+    """Wide figures scroll inside their own box; the page itself always fits the screen."""
+    site = Path(__file__).resolve().parents[1] / "site"
+    page = browser.new_page(viewport={"width": width, "height": height})
+    try:
+        page.goto((site / name).as_uri())
+        page.wait_for_timeout(200)
+        assert page.evaluate("document.documentElement.scrollWidth") <= width
+    finally:
+        page.close()

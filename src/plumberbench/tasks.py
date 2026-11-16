@@ -204,7 +204,7 @@ This house follows every rule above, and these as well.
 - **Weak washers:** a joint that had no pressure when you arrived (it is past a valve you found closed) may have a weak washer. It holds at first, then starts dripping after 3 to 10 ticks under pressure, counted only while it is under pressure. A joint that was under pressure when you arrived never does this. Undoing a joint tells you the state of its washer (sound, worn or weak); refitting it puts in a new one. A weak washer counts as a `supply_leak`.
 - **Slow drains:** each running side of a tap, full or weak, adds 1 unit per tick to its basin. A partly blocked trap drains 1 unit per tick instead of 2, so its basin fills only with hot and cold both running. Report it as `trap_clog` and repair it like a blocked trap.
 - **The main valve is seized** and will not turn. To take the pressure off a wall-side joint, close the branch valve that feeds it; you may close more than one if you do not know which, or the heater valve for a hot joint. Reopen every valve you closed.
-- **`inspect` shows rather than tells** for a joint, a valve or an aerator: the close-up picture shows what you found. A loose nut is backed off, with bare thread (dark rings) between it and the fitting; a tight nut sits flush against it. A blocked aerator is crusted with white scale. Tapping the cleanout is still a sound, and an opened part is still described. A wall-side joint's close-up is taken from the side.
+- **`inspect` shows rather than tells** for a joint, a valve or an aerator: the close-up picture shows what you found. A loose nut is backed off, with bare thread (dark rings) between it and the fitting; a tight nut sits flush against it. A blocked aerator is crusted with white scale. Tapping the cleanout is still a sound, and an opened part is still described. The sound tells whether water stands behind the plug, not whether the branch is blocked: with the basins bailed out, a blocked branch sounds hollow until water has run into it. A wall-side joint's close-up is taken from the side.
 - **Forcing a tight nut** on a sound joint crushes its washer; on a joint that already leaks through a worn washer it changes nothing.
 - **Washers:** every `close_joint` uses one, on a trap or the cleanout plug too. With none left, an opened part cannot be refitted. Removing a trap spills the 1 unit that sits in its bend."""
 
@@ -332,7 +332,7 @@ def check(out: Path, registry_path: Path, levels, seeds, modes) -> list[str]:
 
 
 def write_private(out: Path, levels, n: int, modes) -> int:
-    """n houses per level from random nine-digit seeds. Tasks are numbered, not named after the
+    """n houses per level from random 64-bit seeds. Tasks are numbered, not named after the
     seed (container names come from task names, and an agent can often look its own up); the
     seeds go to seeds.json beside the task folders, which Harbor never copies into a container."""
     import secrets

@@ -4,17 +4,18 @@ Needs a running Docker engine with `docker compose` (on a Mac: Docker Desktop, O
 
 ## From GitHub
 
-The 80 task folders are committed under `harbor/tasks/`, and `registry.json` names four datasets in them:
+The 100 task folders are committed under `harbor/tasks/`, and `registry.json` names five datasets in them:
 
 | Dataset | Tasks |
 |---|---|
-| `plumberbench` | all 80: levels 1–4, seeds 0–9, both modes |
-| `plumberbench-vision`, `plumberbench-facts` | the 40 of each mode |
+| `plumberbench-hard` | the ten level 5 houses, pictures only: start here |
+| `plumberbench` | all 100: levels 1–5, seeds 0–9, both modes |
+| `plumberbench-vision`, `plumberbench-facts` | the 50 of each mode |
 | `plumberbench-smoke` | checks that pictures reach the model |
 
 ```bash
 harbor run --repo valuhaka/plumberbench -d plumberbench-smoke -a opencode -m anthropic/MODEL --ak disable_web_search=true
-harbor run --repo valuhaka/plumberbench -d plumberbench -a opencode -m anthropic/MODEL --ak disable_web_search=true
+harbor run --repo valuhaka/plumberbench -d plumberbench-hard -a opencode -m anthropic/MODEL --ak disable_web_search=true
 harbor run --repo valuhaka/plumberbench -d plumberbench-vision -i l3-s007-vision -a oracle
 ```
 
@@ -22,14 +23,14 @@ harbor run --repo valuhaka/plumberbench -d plumberbench-vision -i l3-s007-vision
 
 ## Private houses
 
-The 80 committed houses are public, so a future model may have seen them, and an agent with a shell and internet access could fetch this repo and simulate them. For grading, generate houses nobody has seen:
+The 100 committed houses are public, so a future model may have seen them, and an agent with a shell and internet access could fetch this repo and rebuild its house from the seed. For grading, generate houses nobody has seen:
 
 ```bash
-uv run -m plumberbench.tasks --out private-tasks --random 10
+uv run -m plumberbench.tasks --out private-tasks --random 10 --levels 5 --mode vision
 harbor run -p private-tasks -a opencode -m anthropic/MODEL --ak disable_web_search=true
 ```
 
-`--random 10` makes ten houses per level from nine-digit random seeds, in both modes. The tasks are numbered (`l3-p00-vision`), not named after their seeds, since container names come from task names; the seeds are listed in `private-tasks/seeds.json` and otherwise appear only where the agent's container cannot see them. Harbor can also restrict the agent's container to named hosts (`network_mode = "allowlist"` under `[environment]` in `task.toml`), once you know which model API it must reach.
+`--random 10` makes ten houses per level from 64-bit random seeds. The tasks are numbered (`l3-p00-vision`), not named after their seeds, since container names come from task names; the seeds are listed in `private-tasks/seeds.json` and otherwise appear only where the agent's container cannot see them. Harbor can also restrict the agent's container to named hosts (`network_mode = "allowlist"` under `[environment]` in `task.toml`), once you know which model API it must reach.
 
 ## The smoke test
 

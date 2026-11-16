@@ -256,6 +256,25 @@ def model_table(models: list[dict]) -> str:
             '<tbody>' + "".join(rows) + "</tbody></table></div>")
 
 
+def finding(ladder: dict, models: list[dict]) -> str:
+    """The headline, from the data: at the top level, how many model jobs were reported done
+    with a fault still in the house, against the reference plumber's clean jobs."""
+    jobs = [r for _, rows in pictures_jobs(models) for r in rows]
+    if not jobs:
+        return ""
+    top = max(r["level"] for r in jobs)
+    at = [r for r in jobs if r["level"] == top]
+    left = sum(1 for r in at if r.get("finished") and r.get("repair", 1) < 1)
+    clean = sum(map(is_clean, at))
+    ref = ladder.get("clean", {}).get("reference solver", {}).get(str(top))
+    tiles = [(f"{left} of {len(at)}", f"level {top} jobs by models reported done with a fault still in the house"),
+             (f"{clean} of {len(at)}", f"level {top} jobs by models that were clean")]
+    if ref is not None:
+        tiles.append((f"{ref} of {ladder['seeds']}", f"level {top} houses the reference plumber left clean"))
+    items = "".join(f"<li><b>{v}</b><span>{ESC(t)}</span></li>" for v, t in tiles)
+    return f'<ul class="tiles">{items}</ul>'
+
+
 def validity(ladder: dict) -> str:
     """Three numbers that say the score means something: the reference plumber near 1, the
     policy that never tests far below, and every exploit at 0."""
@@ -292,6 +311,7 @@ def models_slide(ladder: dict, models: list[dict]) -> str:
     return f"""
 <section class="slide" id="results">
 <h2>Who fixes the house</h2>
+{finding(ladder, models)}
 {legend(entries)}
 <div class="chart-wrap">{models_chart(ladder, models)}</div>
 {model_table(models)}
@@ -378,7 +398,7 @@ def build(log_dir: Path, site: Path, results: Path = Path("results")) -> str:
 </ol>
 {reward_bar()}
 {validity(ladder)}
-<pre class="cmd"><code>harbor run --repo valuhaka/plumberbench -d plumberbench -a opencode -m MODEL</code></pre>
+<pre class="cmd"><code>harbor run --repo valuhaka/plumberbench -d plumberbench-hard -a opencode -m MODEL</code></pre>
 </section>
 
 <section class="slide end" id="try">

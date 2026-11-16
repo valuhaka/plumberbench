@@ -1,20 +1,43 @@
 # PlumberBench
 
-**A house with hidden plumbing faults, seen only in pictures. The agent has to look, test, diagnose and repair without flooding it.**
+**AI can solve olympiad maths. Can it fix a leaky pipe?** An agent is called out to a house with hidden plumbing faults, sees it only in pictures, and has to look, test, diagnose and repair without flooding it, then know when the job is really done.
 
-An environment for AfterQuery's *Break the Agent* challenge (Junction 2026), run with Harbor and OpenCode over MCP. Pitch: [plumberbench.org](https://plumberbench.org).
+<p>
+<img src="site/img/hidden.jpg" width="32%" alt="Under a kitchen basin: the trap looks fine but is blocked">
+<img src="site/img/predict-after.jpg" width="32%" alt="After running the tap, the water rises instead of draining">
+<img src="site/img/puddle.jpg" width="32%" alt="Water on the floor under a leaking drain joint">
+</p>
+
+The fault is hidden; only a test shows it; every test costs time and can flood the floor. Built for AfterQuery's *Break the Agent* challenge at Junction 2026, as a Harbor environment that any agent can play over MCP. Pitch and results: [plumberbench.org](https://plumberbench.org); play it yourself: [plumberbench.org/play](https://plumberbench.org/play/).
+
+## Results
+
+On level 5, the level built to test knowing when the job is done, two of four Claude models fix the house and two report it done with faults still in it:
+
+| Pictures only | Level 1 | Level 3 | Level 4 | Level 5 | Level 5 clean jobs |
+|---|---|---|---|---|---|
+| Reference plumber (scripted, 100 houses per level) | 0.96 | 0.95 | 0.94 | 0.94 | 100 of 100 |
+| Claude Fable 5.2 | 0.95 | 0.93 | 0.94 | 0.94 | 2 of 2 |
+| Claude Opus 5.5 | 0.94 | 0.93 | 0.93 | 0.94 | 2 of 2 |
+| Claude Haiku 5.5 | 0.86 | 0.91 | 0.90 | 0.69 | 1 of 2 |
+| Claude Sonnet 5.5 | 0.95 | 0.92 | 0.92 | 0.54 | 0 of 2 |
+| Codex, default model | 0.90 | 0.68 | 0.58 | – | – |
+| Servicing every part, never testing (100 houses) | 0.41 | 0.43 | 0.51 | 0.71 | 39 of 100 |
+| Five exploits (do nothing, finish at once, name every fault, close the main, repair everything) | 0 | 0 | 0 | 0 | 0 |
+
+A **clean job** fixes every fault, leaves nothing worse, names the faults right and reports done. The models played one or two houses per level, so read these as examples rather than estimates. Claude models ran as Claude Code subagents through [`scripts/pb`](scripts/pb), Codex through the Codex CLI over MCP; neither is the OpenCode harness the benchmark is meant to be run with. All rows: [`results/`](results/); how they were run: [docs/models.md](docs/models.md).
 
 ## Run it
 
 Needs Docker with `docker compose`, Harbor 0.26 (`uv tool install harbor`) and a model key in the environment.
 
 ```bash
-harbor run --repo valuhaka/plumberbench -d plumberbench -a opencode -m anthropic/MODEL --ak disable_web_search=true
+harbor run --repo valuhaka/plumberbench -d plumberbench-hard -a opencode -m anthropic/MODEL --ak disable_web_search=true
 ```
 
-That runs all 80 houses (levels 1–4, ten seeds each, with and without the `FACTS` list). `-l 4` runs four; `-d plumberbench-smoke` first checks that pictures reach the model. More in [docs/harbor.md](docs/harbor.md).
+That runs the ten level 5 houses, pictures only. `-d plumberbench` runs all 100 (levels 1–5, ten seeds each, with and without a `FACTS` list); `-d plumberbench-smoke` first checks that pictures reach the model. The public houses are a development set: to grade, generate private ones ([docs/harbor.md](docs/harbor.md)).
 
-Play a house yourself at [plumberbench.org/play](https://plumberbench.org/play/), or on your machine (no Docker or clone needed):
+Play a house yourself, no Docker or clone needed:
 
 ```bash
 uvx --from git+https://github.com/valuhaka/plumberbench plumberbench-web
@@ -25,9 +48,12 @@ uvx --from git+https://github.com/valuhaka/plumberbench plumberbench-web
 | | |
 |---|---|
 | **World model** | Faults are inside the pipes. The only way to find them is to act and compare what happens with what should: run a tap, watch a drain, open a joint over a bucket. |
-| **Context** | Five views in three rooms, one picture at a time; at levels 3–4 one fault hides another until it is fixed. |
-| **Perception** | In `vision` mode the agent gets pictures and sounds only. |
+| **Context** | Five views in three rooms, one picture at a time; one fault hides another until it is fixed. |
+| **Knowing when you are done** | At level 5 the number of faults varies and nothing gives it away, a weak washer starts dripping only after its valve has been open a while, and a half-blocked trap shows only with both taps running. |
+| **Perception** | In `vision` mode the agent gets pictures and sounds only; at level 5 a loose nut or a crusted aerator is shown in the close-up, not told. |
 | *Not hands* | Every action is one MCP tool call. |
+
+Levels 1–4 add faults, faults hidden behind others, vague complaints and decoys; level 5 closes the shortcuts they leave open (the [known shortcuts](docs/design.md#known-shortcuts)), with every rule stated in its instruction and each change checked for fairness: agents should lose because the job is hard, never because the tools hide something.
 
 ## Scoring
 
@@ -36,39 +62,19 @@ score  = repair x (0.70 + 0.15 x dryness + 0.10 x time left + 0.05 x diagnosis)
 repair = faults fixed / faults present - 0.25 per part left worse
 ```
 
-The verifier replays the logged actions from the seed in its own container, so results cannot be edited into a higher reward. [docs/design.md](docs/design.md) has the house, the tools, the levels and why the exploits fail.
-
-## Results
-
-| | Level 1 | Level 2 | Level 3 | Level 4 |
-|---|---|---|---|---|
-| Reference solver (100 houses per level) | 0.96 | 0.96 | 0.95 | 0.94 |
-| Five exploits (do nothing, finish at once, name every fault, close the main, repair everything) | 0 | 0 | 0 | 0 |
-| Service every part, never test | 0.41 | 0.37 | 0.43 | 0.51 |
-| Codex, default model (houses 0–1, both modes) | 0.90 (4 jobs) | – | 0.44 (4) | 0.58 (4) |
-
-On the same three houses (seed 0, levels 1, 3 and 4, pictures only):
-
-| | Level 1 | Level 3 | Level 4 | Every fault fixed |
-|---|---|---|---|---|
-| Claude Fable 5.2 (Claude Code) | 0.95 | 0.93 | 0.94 | 3 of 3 |
-| Claude Opus 5.5 (Claude Code) | 0.94 | 0.93 | 0.93 | 3 of 3 |
-| Claude Sonnet 5.5 (Claude Code) | 0.91 | 0.92 | 0.92 | 3 of 3 |
-| Claude Haiku 5.5 (Claude Code) | 0.86 | 0.91 | 0.90 | 3 of 3 |
-| Codex, default model (Codex CLI) | 0.88 | 0.43 | 0.91 | 2 of 3 |
-
-At levels 3–4, Codex fixed every fault in 2 of 8 jobs, and in 5 of 8 reported the job done with a fault still in the house. One house per level per Claude model so far. Data: `results/`; figures: [plumberbench.org](https://plumberbench.org); how they were run: [docs/models.md](docs/models.md).
+The verifier replays the logged actions from the seed in its own container, so a result cannot be edited into a higher reward, and a whole-house test must agree with the score. Since a flooded but complete repair still scores 0.70, the result also says whether the job was clean. [docs/design.md](docs/design.md) has the house, the tools, the levels and why the exploits fail.
 
 ## Repository
 
 ```
 src/plumberbench/      the simulator, renderer, MCP server, verifier and reference solver; tools for people and models
-harbor/tasks/          the 80 Harbor tasks (generated by plumberbench.tasks), named in registry.json
+harbor/tasks/          the 100 Harbor tasks (generated by plumberbench.tasks), named in registry.json
 harbor/smoke-vision/   checks that pictures reach the model
 pb_agents/             baseline agents for Harbor
 results/               the difficulty ladder and model runs
+scripts/               checks, and pb, a client for agents that bring their own loop
 site/, worker/         the website, its Cloudflare Worker, and the one behind online play (with Dockerfile)
-tests/                 105 tests; docs/ the details
+tests/                 142 tests; docs/ the details
 ```
 
 ## Develop
